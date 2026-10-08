@@ -6,9 +6,9 @@ from google import genai
 from google.genai import types
 from schemas.question_schema import ExamPaper
 
-# iPad / スマホに最適化したページ構成
+# iPad / スマホ最適化
 st.set_page_config(
-    page_title="入試解答用紙ジェネレーター",
+    page_title="解答用紙ジェネレーター",
     page_icon="📝",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -23,19 +23,21 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("📝 入試解答用紙ジェネレーター")
-st.caption("英語・国語の過去問PDFから、本番仕様の解答用紙（B4）を自動生成します。")
+st.title("📝 解答用紙ジェネレーター")
+st.caption("過去問PDFから、本番仕様の解答用紙（英語・国語）を自動生成します。")
 
 with st.sidebar:
     st.header("⚙️ 設定")
     default_key = os.environ.get("GEMINI_API_KEY", "")
     input_api_key = st.text_input("Gemini API Key", value=default_key, type="password")
+    
+    # デフォルトを gemini-2.5-flash-lite に設定
     selected_model = st.selectbox(
         "使用モデル",
-        options=["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"],
+        options=["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash"],
         index=0
     )
-    st.info("💡 国語は自動で右から左へ流れる本番原稿用紙（1行20マス）として2枚構成で組版されます。")
+    st.info("💡 デフォルトで高速・軽量な Flash-Lite を使用します。")
 
 uploaded_file = st.file_uploader("過去問PDFをアップロード", type=["pdf"])
 
@@ -127,8 +129,6 @@ if uploaded_file is not None:
                 questions = sec.questions
 
                 if is_kokugo:
-                    # 国語: 設問が多い場合は2枚（またはそれ以上）に分割して右から並べる
-                    # 1枚あたり最大3〜4問でゆったり配置
                     chunk_size = 3 if len(questions) > 3 else len(questions)
                     chunks = [questions[i:i + chunk_size] for i in range(0, len(questions), chunk_size)]
                     total_pages_in_sec = len(chunks)
@@ -165,7 +165,6 @@ if uploaded_file is not None:
                             "    spacing: 16mm,",
                         ])
 
-                        # 右端から「問一」「問二」…と並べるため逆順で投入
                         for q in reversed(q_chunk):
                             lines.append("    block(breakable: false)[")
                             lines.append(f'      #align(center)[#text(weight: "bold", size: 10pt)[【{q.q_number}】]]')
@@ -196,7 +195,6 @@ if uploaded_file is not None:
                         lines.append("")
 
                 else:
-                    # 英語: 2段組
                     total_sheet_count += 1
                     if total_sheet_count > 1:
                         lines.append("#pagebreak()")
@@ -266,7 +264,7 @@ if uploaded_file is not None:
             )
 
             if res.returncode != 0:
-                st.error(f"Typstコンパイルエラー:\n{res.stderr}")
+                st.error("解答用紙のコンパイル中にエラーが発生しました。設問形式を確認してください。")
                 st.stop()
 
             with open(pdf_path, "rb") as f:
@@ -276,13 +274,14 @@ if uploaded_file is not None:
             progress_text.text("✨ 本番仕様の解答用紙が完成しました！")
             st.balloons()
 
+            file_display_name = f"{exam.university}_{exam.subject}_解答用紙.pdf".replace(" ", "_")
             st.download_button(
                 label="📥 B4解答用紙PDFをダウンロード",
                 data=result_pdf_bytes,
-                file_name=f"{exam.university}_{exam.subject}_解答用紙.pdf",
+                file_name=file_display_name,
                 mime="application/pdf",
                 type="primary"
             )
 
         except Exception as e:
-            st.error(f"エラーが発生しました: {e}")
+            st.error("処理中にエラーが発生しました。PDFの形式をご確認の上、もう一度お試しください。")
