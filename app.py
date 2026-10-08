@@ -192,8 +192,8 @@ Never invent questions. Do not guess university or year if missing.
                         lines.append("        spacing: 9mm,")
 
                         for q in reversed(chunk):
-                            # ★ 設問の周りを線で囲みブロック化（はみ出し防止＆デザイン向上）
-                            lines.append("        #rect(")
+                            # ★ ここにあった `#rect` の `#` を削除しました（文法エラー解消）
+                            lines.append("        rect(")
                             lines.append("          stroke: 0.8pt + luma(80),")
                             lines.append("          inset: 12pt,")
                             lines.append("          radius: 4pt,")
