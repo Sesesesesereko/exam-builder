@@ -1,0 +1,160 @@
+{
+  "university": "大学入試",
+  "subject": "英語",
+  "year": "",
+  "sections": [
+    {
+      "big_number": "I",
+      "title": null,
+      "questions": [
+        {
+          "q_number": "1",
+          "q_type": "char_grid",
+          "instruction": null,
+          "chars_limit": 50,
+          "line_count": null,
+          "targets": null,
+          "symbols": null
+        },
+        {
+          "q_number": "2",
+          "q_type": "lined_box",
+          "instruction": null,
+          "chars_limit": null,
+          "line_count": 2,
+          "targets": null,
+          "symbols": null
+        },
+        {
+          "q_number": "3",
+          "q_type": "lined_box",
+          "instruction": null,
+          "chars_limit": null,
+          "line_count": 2,
+          "targets": null,
+          "symbols": null
+        },
+        {
+          "q_number": "4",
+          "q_type": "char_grid",
+          "instruction": null,
+          "chars_limit": 60,
+          "line_count": null,
+          "targets": null,
+          "symbols": null
+        },
+        {
+          "q_number": "5",
+          "q_type": "char_grid",
+          "instruction": null,
+          "chars_limit": 60,
+          "line_count": null,
+          "targets": null,
+          "symbols": null
+        }
+      ]
+    },
+    {
+      "big_number": "II",
+      "title": null,
+      "questions": [
+        {
+          "q_number": "1",
+          "q_type": "table_fill",
+          "instruction": null,
+          "chars_limit": null,
+          "line_count": null,
+          "targets": null,
+          "symbols": null
+        },
+        {
+          "q_number": "2",
+          "q_type": "table_fill",
+          "instruction": null,
+          "chars_limit": null,
+          "line_count": null,
+          "targets": null,
+          "symbols": null
+        },
+        {
+          "q_number": "3",
+          "q_type": "table_fill",
+          "instruction": null,
+          "chars_limit": null,
+          "line_count": null,
+          "targets": null,
+          "symbols": [
+            "(A)",
+            "(B)",
+            "(C)"
+          ]
+        },
+        {
+          "q_number": "4",
+          "q_type": "reorder",
+          "instruction": null,
+          "chars_limit": null,
+          "line_count": null,
+          "targets": [
+            "3番目",
+            "6番目"
+          ],
+          "symbols": null
+        },
+        {
+          "q_number": "5",
+          "q_type": "reorder",
+          "instruction": null,
+          "chars_limit": null,
+          "line_count": null,
+          "targets": [
+            "3番目",
+            "6番目"
+          ],
+          "symbols": null
+        },
+        {
+          "q_number": "6",
+          "q_type": "reorder",
+          "instruction": null,
+          "chars_limit": null,
+          "line_count": null,
+          "targets": [
+            "3番目",
+            "6番目"
+          ],
+          "symbols": null
+        },
+        {
+          "q_number": "7",
+          "q_type": "table_fill",
+          "instruction": null,
+          "chars_limit": null,
+          "line_count": null,
+          "targets": null,
+          "symbols": [
+            "(ア)",
+            "(イ)",
+            "(ウ)",
+            "(エ)"
+          ]
+        }
+      ]
+    },
+    {
+      "big_number": "III",
+      "title": null,
+      "questions": [
+        {
+          "q_number": "1",
+          "q_type": "lined_box",
+          "instruction": null,
+          "chars_limit": null,
+          "line_count": 14,
+          "targets": null,
+          "symbols": null
+        }
+      ]
+    }
+  ]
+}
