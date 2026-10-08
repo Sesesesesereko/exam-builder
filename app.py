@@ -102,7 +102,7 @@ if uploaded_file is not None:
                 '#import "components/components.typ": *',
                 "",
                 '#set page(paper: "jis-b4", flipped: true, margin: (x: 18mm, top: 14mm, bottom: 14mm))',
-                '#set text(font: "Yu Gothic", size: 9.5pt)',
+                '#set text(font: ("Noto Sans CJK JP", "Yu Gothic"), lang: "ja", size: 9.5pt)',
                 "",
             ]
 
@@ -195,3 +195,4 @@ if uploaded_file is not None:
 
         except Exception as e:
             st.error(f"エラーが発生しました: {e}")
+
