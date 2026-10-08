@@ -1,14 +1,14 @@
 ﻿// ==================== 1. 国語 本番仕様コンポーネント ====================
 
-// 漢字書き取り枠（二字熟語などを縦にしっかり書ける縦長・特大サイズ）
+// 漢字書き取り枠（縦にゆったり、かつページはみ出しを防ぐ最適サイズ）
 #let vertical-kanji-box(symbols: ("ア", "イ", "ウ", "エ", "オ")) = {
-  let cell-w = 36pt // 横幅をゆったり拡張（約12.7mm）
-  let label-h = 16pt // 見出しの高さ
-  let input-h = 95pt // 縦の高さ（約33.5mm）
+  let cell-w = 34pt
+  let label-h = 16pt
+  let input-h = 75pt // 高すぎず、熟語が綺麗に書ける約26mm
   block(breakable: false)[
     #stack(
       dir: ttb,
-      spacing: 4mm,
+      spacing: 3.5mm,
       ..symbols.map(s => [
         #stack(
           dir: ttb,
@@ -23,7 +23,7 @@
 
 // 縦書き自由記述枠
 #let vertical-free-box(columns-count: 2) = {
-  let col-w = 11mm
+  let col-w = 11.5mm
   block(breakable: false)[
     #rect(
       stroke: 0.7pt + luma(60),

@@ -42,6 +42,21 @@ selected_subject = st.radio(
 
 uploaded_file = st.file_uploader("問題PDFをアップロード", type=["pdf"])
 
+def get_q_width_mm(q):
+    """設問の種類から必要な物理的な横幅(mm)を算出し、はみ出しを防止する"""
+    if q.q_type == "char_grid":
+        chars = q.chars_limit or 60
+        lines = (chars + 19) // 20
+        return lines * 8.7 + 15.0
+    elif q.q_type == "word_fill":
+        return 22.0
+    elif q.q_type == "table_fill":
+        return 18.0
+    elif q.q_type in ["lined_box", "free_box"]:
+        lines = q.line_count or 2
+        return lines * 11.5 + 15.0
+    return 30.0
+
 if uploaded_file is not None:
     st.success(f"📎 読み込み完了: {uploaded_file.name}")
     
@@ -59,77 +74,35 @@ if uploaded_file is not None:
             progress_bar.progress(20)
             pdf_bytes = uploaded_file.read()
 
-            progress_text.text("2/3: AIが頭の中で問題を解き、枠サイズを算出中...")
+            progress_text.text(f"2/3: {selected_subject}専用エンジンで設問解析中...")
             progress_bar.progress(50)
 
             client = genai.Client(api_key=api_key)
 
-            # ================= 英語による最強プロンプト =================
             if selected_subject == "国語":
                 prompt = """
-You are an expert typesetter for Japanese university entrance exam answer sheets.
-Analyze the provided exam PDF and extract the exact question structure.
+You are a highly precise typesetter for Japanese university entrance exams (e.g., Tokyo Univ).
+Your ONLY job is to extract the EXACT question structure from the PDF.
 
-[CORE WORKFLOW]
-1. Read the exam questions carefully (usually located at the end of the text under "設問").
-2. Mentally SOLVE or simulate answering each descriptive question.
-3. Based on your simulated answer, estimate the required space with a 1.3x safety margin.
-4. Output the precise layout structure in JSON.
-
-[STRICT RULES]
-1. NEVER invent or hallucinate questions or multiple-choice options (e.g., ア, イ, ウ) that are not explicitly written in the PDF.
-2. Extract all main questions and sub-questions perfectly in order.
-3. If a question has multiple sub-parts for short answers (e.g., Kanji A-E), set `q_type="word_fill"` and `symbols=["A", "B", "C", "D", "E"]`.
-4. For descriptive/explanation/translation questions:
-   - If a character limit is specified (e.g., "50字以内"): `q_type="char_grid"`, `chars_limit=50`.
-   - If NO character limit is specified: Based on your mental solution, estimate the required lines (usually 2 to 4), and set `q_type="free_box"`, `line_count=estimated_lines`.
-5. For multiple-choice questions (ONLY if options are explicitly provided in the PDF): `q_type="table_fill"`.
-6. `instruction` MUST be an empty string ("").
-7. If `university` or `year` is not clearly stated, leave them as empty strings ("").
+[CRITICAL RULES - FAILURE IS NOT AN OPTION]
+1. ZERO HALLUCINATION: NEVER create fake choices, fake symbols (like ア, イ, ウ), or fake questions. Only extract what is explicitly written in the PDF.
+2. If a question is a descriptive text (e.g. "説明せよ", "訳せよ"), you MUST NOT output `table_fill`. You must use `free_box` (for standard description) or `char_grid` (if character limit like "50字以内" is given).
+3. Mentally solve descriptive questions to estimate the `line_count` (usually 2, 3, or 4 lines).
+4. For Kanji/Vocab extraction (where symbols like A, B, C are explicitly given): use `word_fill` and set `symbols`.
+5. DO NOT GUESS `university` or `year`. If not clearly printed on the first page, leave them as empty strings ("").
+6. Set `instruction` to empty string ("").
 """
             elif selected_subject == "数学":
                 prompt = """
-You are an expert typesetter for university entrance exam answer sheets.
-[CORE WORKFLOW]
 Extract ONLY the main question numbers (e.g., 第1問, 第2問) from the Math exam PDF.
-DO NOT extract sub-questions like (1), (2).
-For each main section, output exactly ONE question with `q_number="解答欄"` and `q_type="math_box"`.
-`instruction`, `university`, and `year` MUST be empty strings unless clearly stated.
+DO NOT extract sub-questions. Output ONE question per section with `q_number="解答欄"`, `q_type="math_box"`.
+Do not guess university or year.
 """
-            elif selected_subject == "英語":
-                prompt = """
-You are an expert typesetter for university entrance exam answer sheets.
-Analyze the provided English exam PDF and extract the exact question structure.
-
-[CORE WORKFLOW]
-1. Read the questions carefully.
-2. Mentally SOLVE each descriptive/translation/essay question.
-3. Estimate the required space based on your simulated answer.
-
-[RULES]
-1. Multiple-choice: `q_type="table_fill"`.
-2. Word ordering: `q_type="reorder"`, set `targets`.
-3. Short answer: `q_type="word_fill"`.
-4. Translation/Explanation: `q_type="lined_box"`. Estimate `line_count` (usually 3-6) based on your mental solution.
-5. Essay: `q_type="lined_box"`, estimate `line_count` (usually 8-12).
-6. If character limit is specified, use `q_type="char_grid"`.
-7. `instruction` MUST be empty string ("").
-8. Do not guess university or year if not explicitly stated.
-"""
-            else: # 地歴社会・理科
+            else:
                 prompt = f"""
-You are an expert typesetter for university entrance exam answer sheets.
-Analyze the provided {selected_subject} exam PDF.
-
-[CORE WORKFLOW]
-1. Read the questions. Mentally SOLVE descriptive/essay/calculation questions to estimate required space.
-[RULES]
-1. Short terms/Multiple-choice: `q_type="word_fill"` or `q_type="table_fill"`.
-2. Essays/Descriptions/Calculations:
-   - With character limit: `q_type="char_grid"`, set `chars_limit`.
-   - Without limit: `q_type="lined_box"` or `q_type="math_box"`. Estimate `line_count` or height based on your solution.
-3. `instruction` MUST be empty string ("").
-4. Do not guess university or year.
+Extract the precise question structure for the {selected_subject} exam.
+Mentally solve questions to estimate `line_count` or `chars_limit`.
+Never invent questions. Do not guess university or year if missing.
 """
 
             response = client.models.generate_content(
@@ -151,8 +124,11 @@ Analyze the provided {selected_subject} exam PDF.
             progress_text.text("3/3: B4本番用紙を組版中...")
             progress_bar.progress(80)
 
-            univ_display = exam.university if exam.university and "unknown" not in exam.university.lower() else "    大学"
-            year_display = exam.year if exam.year and "unknown" not in str(exam.year).lower() else "  年度"
+            has_univ = bool(exam.university and "unknown" not in exam.university.lower())
+            has_year = bool(exam.year and "unknown" not in str(exam.year).lower())
+            
+            univ_display = f"{exam.university}" if has_univ else ""
+            year_display = f"{exam.year}" if has_year else ""
 
             lines = [
                 '#import "components/components.typ": *',
@@ -170,83 +146,146 @@ Analyze the provided {selected_subject} exam PDF.
 
             for sec in exam.sections:
                 questions = sec.questions
-                sheet_count += 1
-                if sheet_count > 1:
-                    lines.append("#pagebreak()")
-
-                lines.extend([
-                    "// 本番入試仕様ヘッダー",
-                    "#grid(",
-                    "  columns: (1fr, auto),",
-                    "  gutter: 12pt,",
-                    "  align: (left + top, right + top),",
-                    "  [",
-                    f'    #text(size: 13pt, weight: "bold")[{year_display} {univ_display} {exam.subject} 解答用紙 【{sec.big_number}】]',
-                    "    #v(3pt)",
-                    '    #text(size: 8pt)[学部：#box(width: 80pt, stroke: (bottom: 0.5pt + luma(80)))[] 日程：#box(width: 60pt, stroke: (bottom: 0.5pt + luma(80)))[] #text(size: 7.5pt, fill: luma(90))[（※印欄には何も記入してはならない。）]]',
-                    "  ],",
-                    "  [",
-                    "    #table(",
-                    "      columns: (45pt, 70pt, 35pt, 90pt, 45pt, 45pt),",
-                    "      rows: (16pt, 26pt),",
-                    "      stroke: 0.5pt + luma(80),",
-                    "      align: center + horizon,",
-                    '      table.cell(fill: luma(245))[受験番号], table.cell(rowspan: 2, fill: white)[],',
-                    '      table.cell(fill: luma(245))[氏名], table.cell(rowspan: 2, fill: white)[],',
-                    '      table.cell(fill: luma(235), colspan: 2)[※得点],',
-                    '      table.cell(fill: white)[], table.cell(fill: white)[]',
-                    "    )",
-                    "  ]",
-                    ")",
-                    "#v(2pt)",
-                    "#line(length: 100%, stroke: 1.2pt)",
-                    "#v(10pt)",
-                    "",
-                ])
 
                 if selected_subject == "国語":
-                    lines.append("#align(right)[")
-                    lines.append("  #stack(")
-                    lines.append("    dir: ltr,")
-                    lines.append("    spacing: 8.5mm,")
+                    # はみ出し防止の動的チャンク（ページ分割）処理
+                    chunks = []
+                    current_chunk = []
+                    current_width = 0.0
+                    MAX_WIDTH = 250.0  # B4用紙の解答枠に使える最大幅(mm)
 
-                    for q in reversed(questions):
-                        lines.append("    block(breakable: false)[")
-                        lines.append(f'      #align(center)[#text(weight: "bold", size: 9.5pt)[【{q.q_number}】]]')
-                        lines.append("      #v(5pt)")
-
-                        if q.q_type == "char_grid":
-                            c = q.chars_limit or 60
-                            lines.append(f"      #vertical-grid(chars: {c})")
-                        elif q.q_type == "word_fill":
-                            symbols = q.symbols or ["A", "B", "C", "D", "E"]
-                            arr = ", ".join([f'"{s}"' for s in symbols])
-                            lines.append(f"      #vertical-kanji-box(symbols: ({arr},))")
-                        elif q.q_type == "table_fill":
-                            symbols = q.symbols or ["(1)", "(2)"]
-                            arr = ", ".join([f'"{s}"' for s in symbols])
-                            lines.append(f"      #vertical-symbol-box(symbols: ({arr},))")
+                    for q in questions:
+                        w = get_q_width_mm(q)
+                        if current_width + w > MAX_WIDTH and current_chunk:
+                            chunks.append(current_chunk)
+                            current_chunk = [q]
+                            current_width = w
                         else:
-                            ln = q.line_count or 3
-                            lines.append(f"      #vertical-free-box(columns-count: {ln})")
+                            current_chunk.append(q)
+                            current_width += w
+                    
+                    if current_chunk:
+                        chunks.append(current_chunk)
 
-                        lines.append("    ],")
+                    # チャンクごとにページ出力
+                    for c_idx, chunk in enumerate(chunks):
+                        sheet_count += 1
+                        if sheet_count > 1:
+                            lines.append("#pagebreak()")
 
-                    lines.append("  )")
-                    lines.append("]")
-                    lines.append("")
+                        page_label = f"({c_idx + 1}/{len(chunks)})" if len(chunks) > 1 else ""
+
+                        lines.append("#grid(")
+                        lines.append("  columns: (1fr, 36mm),")
+                        lines.append("  gutter: 14mm,")
+                        lines.append("  [")
+                        lines.append("    #align(right)[")
+                        lines.append("      #stack(")
+                        lines.append("        dir: ltr,")
+                        lines.append("        spacing: 9mm,")
+
+                        for q in reversed(chunk):
+                            lines.append("        block(breakable: false)[")
+                            lines.append(f'          #align(center)[#text(weight: "bold", size: 10pt)[【{q.q_number}】]]')
+                            lines.append("          #v(6pt)")
+
+                            if q.q_type == "char_grid":
+                                c = q.chars_limit or 60
+                                lines.append(f"          #vertical-grid(chars: {c})")
+                            elif q.q_type == "word_fill":
+                                symbols = q.symbols or ["ア", "イ", "ウ", "エ", "オ"]
+                                arr = ", ".join([f'"{s}"' for s in symbols])
+                                lines.append(f"          #vertical-kanji-box(symbols: ({arr},))")
+                            elif q.q_type == "table_fill":
+                                symbols = q.symbols or ["(1)", "(2)"]
+                                arr = ", ".join([f'"{s}"' for s in symbols])
+                                lines.append(f"          #vertical-symbol-box(symbols: ({arr},))")
+                            else:
+                                ln = q.line_count or 2
+                                lines.append(f"          #vertical-free-box(columns-count: {ln})")
+
+                            lines.append("        ],")
+
+                        lines.append("      )")
+                        lines.append("    ]")
+                        lines.append("  ],")
+
+                        # ズレない・はみ出さない完璧なヘッダー
+                        lines.extend([
+                            "  [",
+                            "    #rect(width: 100%, height: 100%, stroke: 0.8pt + luma(60), fill: white, inset: 0pt)[",
+                            "      #grid(",
+                            "        columns: (100%,),",
+                            "        rows: (35pt, 28pt, 55pt, 55pt, 22pt, 65pt, 22pt, 75pt, 22pt, 1fr),",
+                            '        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: luma(245))[#align(center + horizon)[#text(size: 11pt, weight: "bold")[国語 解答用紙]]],',
+                            f'        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: white)[#align(center + horizon)[#text(size: 9.5pt, weight: "bold")[【{sec.big_number}】{page_label}]]],',
+                            f'        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: white)[',
+                            '          #align(left + top)[',
+                            '            #v(4pt)#h(4pt)#text(size: 8pt)[大学名:]',
+                            '            #v(10pt)',
+                            f'            #align(center)[#text(size: 10pt, weight: "bold")[{univ_display}] #if "{univ_display}" == "" [#box(width: 75%, stroke: (bottom: 0.5pt))[] #text(size: 8pt)[大学]]]',
+                            '          ]',
+                            '        ],',
+                            f'        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: white)[',
+                            '          #align(left + top)[',
+                            '            #v(4pt)#h(4pt)#text(size: 8pt)[年度・学部:]',
+                            '            #v(10pt)',
+                            f'            #align(center)[#text(size: 10pt, weight: "bold")[{year_display}] #if "{year_display}" == "" [#box(width: 85%, stroke: (bottom: 0.5pt))[]]]',
+                            '          ]',
+                            '        ],',
+                            '        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: luma(245))[#align(center + horizon)[#text(size: 9pt)[受験番号]]],',
+                            '        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: white)[],',
+                            '        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: luma(245))[#align(center + horizon)[#text(size: 9pt)[氏名]]],',
+                            '        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: white)[],',
+                            '        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: luma(235))[#align(center + horizon)[#text(size: 9pt)[※得点]]],',
+                            '        rect(width: 100%, height: 100%, stroke: none, fill: white)[]',
+                            "      )",
+                            "    ]",
+                            "  ]",
+                            ")",
+                            ""
+                        ])
 
                 elif selected_subject == "数学":
-                    lines.append("  #math-calc-box(height-pt: 480pt, divided: true)")
-                    lines.append("")
+                    sheet_count += 1
+                    if sheet_count > 1:
+                        lines.append("#pagebreak()")
+                    lines.extend([
+                        "#grid(",
+                        "  columns: (1fr, auto),",
+                        "  gutter: 12pt,",
+                        "  align: (left + top, right + top),",
+                        f'  text(size: 13pt, weight: "bold")[{year_display} {univ_display} 数学 解答用紙 【{sec.big_number}】],',
+                        '  table(columns: (45pt, 70pt, 35pt, 90pt, 45pt), rows: (16pt, 24pt), align: center + horizon, stroke: 0.5pt, table.cell(fill: luma(245))[受験番号], table.cell(rowspan: 2, fill: white)[], table.cell(fill: luma(245))[氏名], table.cell(rowspan: 2, fill: white)[], table.cell(fill: luma(235))[※得点], table.cell(fill: white)[])',
+                        ")",
+                        "#v(5pt)",
+                        "#line(length: 100%, stroke: 1.2pt)",
+                        "#v(10pt)",
+                        "#math-calc-box(height-pt: 480pt, divided: true)",
+                        ""
+                    ])
 
                 else:
-                    lines.append("#columns(2, gutter: 16mm)[")
+                    sheet_count += 1
+                    if sheet_count > 1:
+                        lines.append("#pagebreak()")
+                    lines.extend([
+                        "#grid(",
+                        "  columns: (1fr, auto),",
+                        "  gutter: 12pt,",
+                        "  align: (left + top, right + top),",
+                        f'  text(size: 13pt, weight: "bold")[{year_display} {univ_display} {exam.subject} 解答用紙 【{sec.big_number}】],',
+                        '  table(columns: (45pt, 70pt, 35pt, 90pt, 45pt), rows: (16pt, 24pt), align: center + horizon, stroke: 0.5pt, table.cell(fill: luma(245))[受験番号], table.cell(rowspan: 2, fill: white)[], table.cell(fill: luma(245))[氏名], table.cell(rowspan: 2, fill: white)[], table.cell(fill: luma(235))[※得点], table.cell(fill: white)[])',
+                        ")",
+                        "#v(5pt)",
+                        "#line(length: 100%, stroke: 1.2pt)",
+                        "#v(10pt)",
+                        "#columns(2, gutter: 16mm)[",
+                    ])
                     for q in questions:
                         lines.append("  #block(breakable: false)[")
                         lines.append(f'    #text(weight: "bold", size: 10pt)[【{q.q_number}】]')
                         lines.append("    #v(3pt)")
-
                         if q.q_type == "char_grid":
                             c = q.chars_limit or 100
                             lines.append(f"    #char-grid(chars: {c})")
@@ -265,7 +304,6 @@ Analyze the provided {selected_subject} exam PDF.
                             symbols = q.symbols or ["(1)", "(2)"]
                             arr = ", ".join([f'"{s}"' for s in symbols])
                             lines.append(f"    #word-box(symbols: ({arr},))")
-
                         lines.append("    #v(12pt)")
                         lines.append("  ]")
                     lines.append("]")
