@@ -31,10 +31,10 @@ with st.sidebar:
     default_key = os.environ.get("GEMINI_API_KEY", "")
     input_api_key = st.text_input("Gemini API Key", value=default_key, type="password")
     
-    # デフォルトを gemini-2.5-flash-lite に設定
+    # デフォルトを gemini-3.5-flash-lite に設定
     selected_model = st.selectbox(
         "使用モデル",
-        options=["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash"],
+        options=["gemini-3.5-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash"],
         index=0
     )
     st.info("💡 デフォルトで高速・軽量な Flash-Lite を使用します。")
@@ -285,3 +285,4 @@ if uploaded_file is not None:
 
         except Exception as e:
             st.error("処理中にエラーが発生しました。PDFの形式をご確認の上、もう一度お試しください。")
+
