@@ -36,7 +36,7 @@ st.markdown("""
 
 selected_subject = st.radio(
     "科目を選択してください",
-    options=["英語", "国語", "数学", "地歴・社会", "理科"],
+    options=["国語", "英語", "数学", "地歴・社会", "理科"],
     horizontal=True
 )
 
@@ -55,7 +55,7 @@ if uploaded_file is not None:
         progress_bar = st.progress(0)
 
         try:
-            progress_text.text("1/3: PDFデータを解析中...")
+            progress_text.text("1/3: PDFデータを読み込み中...")
             progress_bar.progress(20)
             pdf_bytes = uploaded_file.read()
 
@@ -66,40 +66,31 @@ if uploaded_file is not None:
 
             if selected_subject == "国語":
                 prompt = """
-あなたは大学入試の国語解答用紙を設計する組版専門家です。
-問題PDFから国語の設問構造を抽出してください。
+あなたは大学入試（東大・京大・難関大）の国語解答用紙を設計する最高峰の組版専門家です。
+問題PDFに存在する各大問（第一問、第二問、第三問など）と、それに含まれる小問（一、二、三…）を、問題文の末尾にある「設問」から正確に抽出してください。
 
-【厳格ルール】
-1. 小問（問い一、問い二、問い三…）を一問も漏らさず順番通りに抽出してください。
-2. 漢字書き取り問題（問い一など）:
-   - 設問記号一覧（["A", "B", "C", "D", "E"] や ["ア", "イ"] など）を symbols に設定し、q_type="word_fill" としてください。
-3. 文字数指定のある記述問題:
-   - 「○字以内」「○字程度」とある場合は、q_type="char_grid", chars_limit に字数を設定してください。
-4. 字数指定のない説明・現代語訳・心情説明問題:
-   - q_type="free_box", line_count に行数（通常2〜3行）を設定してください。
-5. 記号選択問題:
-   - q_type="table_fill", symbols に小問番号を設定してください。
-6. universityやyearがPDF内に明記されていない場合は空文字にしてください。
-7. instructionは空文字にしてください。
+【超重要ルール】
+1. 架空の選択肢や記号（ア・イ・ウ・エ等）を勝手に捏造することは絶対に禁止です。問題文に「選べ」と書いてある場合のみ table_fill にしてください。
+2. 漢字書き取り問題（設問一など。カタカナや漢字の書き取り）:
+   - q_type="word_fill"
+   - symbols には問題で指定されている記号一覧（例: ["ア", "イ", "ウ", "エ", "オ"] や ["A", "B", "C", "D", "E"]）を入れてください。
+3. 説明記述・現代語訳・理由説明問題（設問二、三、四など。〜を説明せよ、〜を現代語訳せよ）:
+   - 「○字以内」と指定がある場合: q_type="char_grid", chars_limit に字数を設定。
+   - 字数指定がない場合（東大標準）: q_type="free_box", line_count に行数（目安2行〜3行）を設定。
+4. 抜き出し問題（二字、四字で抜き出せなど）:
+   - q_type="word_fill", symbols に ["抜き出し"] を設定。
+5. 大学名や年度がPDFに明記されていない場合は空文字にしてください（推測禁止）。
+6. instructionは空文字にしてください。
 """
             elif selected_subject == "数学":
                 prompt = """
-あなたは大学入試の解答用紙を設計する組版専門家です。
-問題PDFから、各大問（第1問、第2問など）の番号とタイトルのみを抽出してください。
-各セクションの questions には、q_number="解答欄", q_type="math_box" の要素を1つだけ含めてください。
+問題PDFから各大問（第1問、第2問など）の番号とタイトルのみを抽出してください。
+各セクションの questions には q_number="解答欄", q_type="math_box" の要素を1つだけ含めてください。
 """
             else:
                 prompt = f"""
-あなたは大学入試の解答用紙を設計する専門家です。
 提供された問題PDFから、{selected_subject}の設問構造を一問も漏らさず正確に抽出してください。
-【ルール】
-1. 小問・枝問は省略せず抽出してください。
-2. 字数制限のある記述は q_type="char_grid", chars_limit に数値を設定。
-3. 語句整序は q_type="reorder", targets に指定位置を設定。
-4. 選択肢記号問題は q_type="table_fill", symbols に小問記号を設定。
-5. 単語短答は q_type="word_fill", symbols に小問記号を設定。
-6. 説明・和訳・英作文は q_type="lined_box", line_count に行数を設定。
-7. instructionは空文字にしてください。
+架空の設問を捏造せず、問題に存在する設問のみを忠実に抽出してください。
 """
 
             response = client.models.generate_content(
@@ -140,86 +131,73 @@ if uploaded_file is not None:
 
             for sec in exam.sections:
                 questions = sec.questions
+                sheet_count += 1
+                if sheet_count > 1:
+                    lines.append("#pagebreak()")
 
                 if selected_subject == "国語":
-                    # 国語: 1大問を記述量に応じて最大2枚にゆったり配分
-                    chunks = []
-                    if len(questions) <= 3:
-                        chunks = [questions]
-                    else:
-                        mid = 2  # 問い一・問い二を1枚目、問い三・問い四を2枚目に配置
-                        chunks = [questions[:mid], questions[mid:]]
+                    # 国語: 1大問＝B4横1枚完結。右側に縦型ヘッダー帯、左側に全設問を右から並べる
+                    lines.append("#grid(")
+                    lines.append("  columns: (1fr, 32mm),")
+                    lines.append("  gutter: 14mm,")
+                    lines.append("  [")
+                    lines.append("    #align(right)[")
+                    lines.append("      #stack(")
+                    lines.append("        dir: ltr,")
+                    lines.append("        spacing: 9mm,")
 
-                    for c_idx, chunk in enumerate(chunks):
-                        sheet_count += 1
-                        if sheet_count > 1:
-                            lines.append("#pagebreak()")
+                    # 右から左へ設問を並べる
+                    for q in reversed(questions):
+                        lines.append("        block(breakable: false)[")
+                        lines.append(f'          #align(center)[#text(weight: "bold", size: 10pt)[【{q.q_number}】]]')
+                        lines.append("          #v(6pt)")
 
-                        p_label = f"{c_idx + 1} / {len(chunks)}"
+                        if q.q_type == "char_grid":
+                            c = q.chars_limit or 60
+                            lines.append(f"          #vertical-grid(chars: {c})")
+                        elif q.q_type == "word_fill":
+                            symbols = q.symbols or ["ア", "イ", "ウ", "エ", "オ"]
+                            arr = ", ".join([f'"{s}"' for s in symbols])
+                            lines.append(f"          #vertical-kanji-box(symbols: ({arr},))")
+                        elif q.q_type == "table_fill":
+                            symbols = q.symbols or ["(1)", "(2)"]
+                            arr = ", ".join([f'"{s}"' for s in symbols])
+                            lines.append(f"          #vertical-symbol-box(symbols: ({arr},))")
+                        else:
+                            # 現代文・古文・漢文の記述枠（行数2〜3行の縦書き枠）
+                            ln = q.line_count or 2
+                            lines.append(f"          #vertical-free-box(columns-count: {ln})")
 
-                        lines.append("#grid(")
-                        lines.append("  columns: (1fr, 32mm),")
-                        lines.append("  gutter: 14mm,")
-                        lines.append("  [")
-                        # 左側：設問エリア（右から左へ並ぶ）
-                        lines.append("    #align(right)[")
-                        lines.append("      #stack(")
-                        lines.append("        dir: ltr,")
-                        lines.append("        spacing: 12mm,")
+                        lines.append("        ],")
 
-                        for q in reversed(chunk):
-                            lines.append("        block(breakable: false)[")
-                            lines.append(f'          #align(center)[#text(weight: "bold", size: 10.5pt)[【{q.q_number}】]]')
-                            lines.append("          #v(6pt)")
+                    lines.append("      )")
+                    lines.append("    ]")
+                    lines.append("  ],")
 
-                            if q.q_type == "char_grid":
-                                c = q.chars_limit or 40
-                                lines.append(f"          #vertical-grid(chars: {c})")
-                            elif q.q_type == "word_fill":
-                                symbols = q.symbols or ["A", "B", "C", "D", "E"]
-                                arr = ", ".join([f'"{s}"' for s in symbols])
-                                lines.append(f"          #vertical-kanji-box(symbols: ({arr},))")
-                            elif q.q_type == "table_fill":
-                                symbols = q.symbols or ["(1)", "(2)", "(3)"]
-                                arr = ", ".join([f'"{s}"' for s in symbols])
-                                lines.append(f"          #vertical-symbol-box(symbols: ({arr},))")
-                            else:
-                                ln = q.line_count or 3
-                                lines.append(f"          #vertical-free-box(columns-count: {ln})")
-
-                            lines.append("        ],")
-
-                        lines.append("      )")
-                        lines.append("    ]")
-                        lines.append("  ],")
-
-                        # 右側：縦型ヘッダー帯（東進・本番完全準拠）
-                        lines.append("  [")
-                        lines.append("    #rect(width: 100%, height: 100%, stroke: 0.8pt + luma(60), fill: white, inset: 0pt)[")
-                        lines.append("      #stack(")
-                        lines.append("        dir: ttb,")
-                        lines.append("        spacing: 0pt,")
-                        lines.append('        rect(width: 100%, height: 35pt, stroke: (bottom: 0.5pt), fill: luma(245))[#align(center + horizon)[#text(size: 11pt, weight: "bold")[国語 解答用紙]]],')
-                        lines.append(f'        rect(width: 100%, height: 30pt, stroke: (bottom: 0.5pt), fill: white)[#align(center + horizon)[#text(size: 9pt)[{sec.big_number} ({p_label})]]],')
-                        lines.append(f'        rect(width: 100%, height: 40pt, stroke: (bottom: 0.5pt), fill: white)[#align(center + horizon)[#text(size: 8.5pt)[{year_display}\n{univ_display}]]],')
-                        lines.append('        rect(width: 100%, height: 18pt, stroke: (bottom: 0.5pt), fill: luma(245))[#align(center + horizon)[#text(size: 8pt)[学部・日程]]],')
-                        lines.append('        rect(width: 100%, height: 32pt, stroke: (bottom: 0.5pt), fill: white)[],')
-                        lines.append('        rect(width: 100%, height: 18pt, stroke: (bottom: 0.5pt), fill: luma(245))[#align(center + horizon)[#text(size: 8pt)[受験番号]]],')
-                        lines.append('        rect(width: 100%, height: 40pt, stroke: (bottom: 0.5pt), fill: white)[],')
-                        lines.append('        rect(width: 100%, height: 18pt, stroke: (bottom: 0.5pt), fill: luma(245))[#align(center + horizon)[#text(size: 8pt)[氏名]]],')
-                        lines.append('        rect(width: 100%, height: 50pt, stroke: (bottom: 0.5pt), fill: white)[],')
-                        lines.append('        rect(width: 100%, height: 18pt, stroke: (bottom: 0.5pt), fill: luma(235))[#align(center + horizon)[#text(size: 8pt)[※得点]]],')
-                        lines.append('        rect(width: 100%, height: 40pt, stroke: none, fill: white)[]')
-                        lines.append("      )")
-                        lines.append("    ]")
-                        lines.append("  ]")
-                        lines.append(")")
-                        lines.append("")
+                    # 右側ヘッダー（本番入試仕様）
+                    lines.append("  [")
+                    lines.append("    #rect(width: 100%, height: 100%, stroke: 0.8pt + luma(60), fill: white, inset: 0pt)[")
+                    lines.append("      #stack(")
+                    lines.append("        dir: ttb,")
+                    lines.append("        spacing: 0pt,")
+                    lines.append('        rect(width: 100%, height: 35pt, stroke: (bottom: 0.5pt), fill: luma(245))[#align(center + horizon)[#text(size: 11pt, weight: "bold")[国語 解答用紙]]],')
+                    lines.append(f'        rect(width: 100%, height: 30pt, stroke: (bottom: 0.5pt), fill: white)[#align(center + horizon)[#text(size: 9.5pt, weight: "bold")[【{sec.big_number}】]]],')
+                    lines.append(f'        rect(width: 100%, height: 42pt, stroke: (bottom: 0.5pt), fill: white)[#align(center + horizon)[#text(size: 8.5pt)[{year_display}\n{univ_display}]]],')
+                    lines.append('        rect(width: 100%, height: 18pt, stroke: (bottom: 0.5pt), fill: luma(245))[#align(center + horizon)[#text(size: 8pt)[学部・日程]]],')
+                    lines.append('        rect(width: 100%, height: 32pt, stroke: (bottom: 0.5pt), fill: white)[],')
+                    lines.append('        rect(width: 100%, height: 18pt, stroke: (bottom: 0.5pt), fill: luma(245))[#align(center + horizon)[#text(size: 8pt)[受験番号]]],')
+                    lines.append('        rect(width: 100%, height: 40pt, stroke: (bottom: 0.5pt), fill: white)[],')
+                    lines.append('        rect(width: 100%, height: 18pt, stroke: (bottom: 0.5pt), fill: luma(245))[#align(center + horizon)[#text(size: 8pt)[氏名]]],')
+                    lines.append('        rect(width: 100%, height: 50pt, stroke: (bottom: 0.5pt), fill: white)[],')
+                    lines.append('        rect(width: 100%, height: 18pt, stroke: (bottom: 0.5pt), fill: luma(235))[#align(center + horizon)[#text(size: 8pt)[※得点]]],')
+                    lines.append('        rect(width: 100%, height: 40pt, stroke: none, fill: white)[]')
+                    lines.append("      )")
+                    lines.append("    ]")
+                    lines.append("  ]")
+                    lines.append(")")
+                    lines.append("")
 
                 elif selected_subject == "数学":
-                    sheet_count += 1
-                    if sheet_count > 1:
-                        lines.append("#pagebreak()")
                     lines.extend([
                         "#grid(",
                         "  columns: (1fr, auto),",
@@ -236,9 +214,6 @@ if uploaded_file is not None:
                     ])
 
                 else:
-                    sheet_count += 1
-                    if sheet_count > 1:
-                        lines.append("#pagebreak()")
                     lines.extend([
                         "#grid(",
                         "  columns: (1fr, auto),",
