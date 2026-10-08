@@ -1,5 +1,6 @@
 ﻿import os
 import time
+import base64
 import subprocess
 import streamlit as st
 from google import genai
@@ -69,7 +70,16 @@ def get_q_width_mm(q):
 
 if uploaded_file is not None:
     st.success(f"📎 読み込み完了: {uploaded_file.name}")
-    
+    pdf_bytes = uploaded_file.read()
+
+    # ==========================================
+    # 問題PDFプレビュー機能（アコーディオン形式）
+    # ==========================================
+    with st.expander("👁️ アップロードした問題PDFをプレビューする", expanded=False):
+        b64_pdf = base64.b64encode(pdf_bytes).decode("utf-8")
+        pdf_display = f'<iframe src="data:application/pdf;base64,{b64_pdf}" width="100%" height="600" type="application/pdf" style="border: 1px solid #cbd5e1; border-radius: 8px;"></iframe>'
+        st.markdown(pdf_display, unsafe_allow_html=True)
+
     if st.button("🚀 解答用紙を生成する"):
         api_key = os.environ.get("GEMINI_API_KEY")
         if not api_key:
@@ -80,18 +90,14 @@ if uploaded_file is not None:
         progress_bar = st.progress(0)
 
         try:
-            progress_text.text("1/3: PDFデータを読み込み中...")
+            progress_text.text("1/3: PDFデータを解析準備中...")
             progress_bar.progress(20)
-            pdf_bytes = uploaded_file.read()
 
             progress_text.text(f"2/3: 【{selected_subject}】専用エンジンで設問解析中...")
             progress_bar.progress(50)
 
             client = genai.Client(api_key=api_key)
 
-            # ==========================================
-            # 教科別 完全分離プロンプト
-            # ==========================================
             if selected_subject == "国語":
                 prompt = """
 You are a highly precise typesetter for Japanese entrance exams. Read ONLY the "設問" (Questions) section.
@@ -155,7 +161,6 @@ ZERO HALLUCINATION.
             else:
                 prompt = "Extract questions. Mentally solve them. Set instruction to empty string."
 
-            # 無料枠で最も多く利用できる flash-lite に固定
             response = client.models.generate_content(
                 model="gemini-3.5-flash-lite",
                 contents=[
