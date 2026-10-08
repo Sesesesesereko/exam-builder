@@ -9,7 +9,7 @@ from google import genai
 from google.genai import types
 from schemas.question_schema import ExamPaper
 
-GOOGLE_FORM_URL = "https://forms.gle/"
+GOOGLE_FORM_URL = "https://forms.gle/x7isU1uRdGtiT5ZPA"
 
 st.set_page_config(
     page_title="入試解答用紙ジェネレーター",
