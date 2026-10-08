@@ -1,8 +1,10 @@
 ﻿import os
+import io
 import time
 import base64
 import subprocess
 import streamlit as st
+from pypdf import PdfWriter, PdfReader
 from google import genai
 from google.genai import types
 from schemas.question_schema import ExamPaper
@@ -43,6 +45,9 @@ selected_subject = st.radio(
 
 uploaded_file = st.file_uploader("問題PDFをアップロード", type=["pdf"])
 
+# 問題用紙を一緒に印刷・結合するかどうかの選択
+include_questions = st.checkbox("📄 問題用紙もまとめて1つのPDFにする（問題 ＋ 解答用紙）", value=False)
+
 def get_q_width_mm(q):
     """大枠(rect)のパディングを含めた物理幅(mm)を算出し、はみ出しを防ぐ"""
     base_gap = 14.0
@@ -72,9 +77,6 @@ if uploaded_file is not None:
     st.success(f"📎 読み込み完了: {uploaded_file.name}")
     pdf_bytes = uploaded_file.read()
 
-    # ==========================================
-    # 問題PDFプレビュー機能（アコーディオン形式）
-    # ==========================================
     with st.expander("👁️ アップロードした問題PDFをプレビューする", expanded=False):
         b64_pdf = base64.b64encode(pdf_bytes).decode("utf-8")
         pdf_display = f'<iframe src="data:application/pdf;base64,{b64_pdf}" width="100%" height="600" type="application/pdf" style="border: 1px solid #cbd5e1; border-radius: 8px;"></iframe>'
@@ -90,7 +92,7 @@ if uploaded_file is not None:
         progress_bar = st.progress(0)
 
         try:
-            progress_text.text("1/3: PDFデータを解析準備中...")
+            progress_text.text("1/3: PDFデータを読み込み中...")
             progress_bar.progress(20)
 
             progress_text.text(f"2/3: 【{selected_subject}】専用エンジンで設問解析中...")
@@ -133,7 +135,7 @@ ZERO HALLUCINATION: Do not invent questions.
 You are a Math exam typesetter.
 Extract ONLY the main question numbers (e.g., 第1問, 第2問).
 DO NOT extract sub-questions like (1), (2).
-For each main section, output exactly ONE question with `q_number="解答欄"` and `q_type="math_box"`.
+For each main section, output exactly ONE question with `q_number="解答欄"`, `q_type="math_box"`.
 DO NOT guess `university` or `year`. Set `instruction`="".
 """
             elif selected_subject == "地歴・社会":
@@ -400,16 +402,39 @@ ZERO HALLUCINATION.
                 st.stop()
 
             with open(pdf_path, "rb") as f:
-                result_pdf_bytes = f.read()
+                answer_sheet_bytes = f.read()
+
+            # 問題PDFを結合するかどうかの判定
+            if include_questions:
+                merger = PdfWriter()
+                
+                # 1. 問題PDFを全ページ追加
+                q_pdf_reader = PdfReader(io.BytesIO(pdf_bytes))
+                for page in q_pdf_reader.pages:
+                    merger.add_page(page)
+                
+                # 2. 生成した解答用紙PDFを全ページ追加
+                a_pdf_reader = PdfReader(io.BytesIO(answer_sheet_bytes))
+                for page in a_pdf_reader.pages:
+                    merger.add_page(page)
+                
+                merged_output = io.BytesIO()
+                merger.write(merged_output)
+                final_pdf_bytes = merged_output.getvalue()
+                button_label = "📥 問題＋解答用紙PDFをダウンロード"
+                file_display_name = f"{exam.subject}_問題および解答用紙.pdf"
+            else:
+                final_pdf_bytes = answer_sheet_bytes
+                button_label = "📥 B4解答用紙PDFをダウンロード"
+                file_display_name = f"{exam.subject}_解答用紙.pdf"
 
             progress_bar.progress(100)
-            progress_text.text("✨ 本番仕様の解答用紙が完成しました！")
+            progress_text.text("✨ PDFの作成が完了しました！")
             st.balloons()
 
-            file_display_name = f"{exam.subject}_解答用紙.pdf"
             st.download_button(
-                label="📥 B4解答用紙PDFをダウンロード",
-                data=result_pdf_bytes,
+                label=button_label,
+                data=final_pdf_bytes,
                 file_name=file_display_name,
                 mime="application/pdf",
                 type="primary"
