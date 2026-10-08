@@ -14,7 +14,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# モバイル・タブレット用のCSS
 st.markdown("""
 <style>
     .block-container { padding-top: 1.5rem; padding-bottom: 2rem; max-width: 900px; }
@@ -24,20 +23,18 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("📝 解答用紙ジェネレーター")
-st.caption("過去問PDFから、本番仕様の解答用紙（英語・国語）を自動生成します。")
+st.caption("過去問PDFから本番仕様の解答用紙（B4）を自動生成します。")
 
 with st.sidebar:
     st.header("⚙️ 設定")
     default_key = os.environ.get("GEMINI_API_KEY", "")
     input_api_key = st.text_input("Gemini API Key", value=default_key, type="password")
     
-    # デフォルトを gemini-3.5-flash-lite に設定
     selected_model = st.selectbox(
         "使用モデル",
-        options=["gemini-3.5-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash"],
+        options=["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash"],
         index=0
     )
-    st.info("💡 デフォルトで高速・軽量な Flash-Lite を使用します。")
 
 uploaded_file = st.file_uploader("過去問PDFをアップロード", type=["pdf"])
 
@@ -74,7 +71,7 @@ if uploaded_file is not None:
 3. 解答欄タイプの厳密判定:
    - 「○字以内」「○字程度」とある論述問題: q_type="char_grid", chars_limit に指定文字数を数値で設定（例: 30, 50, 60, 100）。
    - 漢字書き取り、語句の抜き出し・短答: q_type="word_fill", symbols に ["A", "B", "C", "D", "E"] や ["ア", "イ"] などの記号リストを設定。
-   - 字数指定のない説明・現代語訳・心情説明: q_type="lined_box", line_count に行数（2〜4）を設定。
+   - 字数指定のない説明・現代語訳・心情説明: q_type="lined_box", line_count に行数（2〜3）を設定。
    - 記号選択: q_type="table_fill", symbols に ["(1)", "(2)"] などの記号リストを設定。
 4. instruction（指示文）は解答用紙には不要なため、すべて空文字（""）にしてください。
 """
@@ -117,108 +114,75 @@ if uploaded_file is not None:
                 '#set page(',
                 '  paper: "jis-b4",',
                 '  flipped: true,',
-                '  margin: (x: 18mm, top: 14mm, bottom: 14mm)',
+                '  margin: (x: 16mm, top: 12mm, bottom: 12mm)',
                 ')',
                 '#set text(font: ("Noto Serif CJK JP", "Noto Sans CJK JP", "IPAexGothic", "IPAGothic", "Yu Gothic"), lang: "ja", size: 9.5pt)',
                 "",
             ]
 
-            total_sheet_count = 0
+            for i, sec in enumerate(exam.sections):
+                if i > 0:
+                    lines.append("#pagebreak()")
 
-            for sec in exam.sections:
-                questions = sec.questions
+                lines.extend([
+                    "// ヘッダー情報",
+                    "#grid(",
+                    "  columns: (1fr, auto),",
+                    "  align: (left + horizon, right + horizon),",
+                    f'  text(size: 13pt, weight: "bold")[{exam.year} {exam.university} {exam.subject} 解答用紙 【{sec.big_number}】],',
+                    '  table(',
+                    '    columns: (55pt, 85pt),',
+                    '    rows: (20pt,),',
+                    '    align: center + horizon,',
+                    '    stroke: 0.5pt + luma(80),',
+                    '    [受験番号], []',
+                    '  )',
+                    ")",
+                    "#v(3pt)",
+                    "#line(length: 100%, stroke: 1pt)",
+                    "#v(10pt)",
+                    "",
+                ])
 
                 if is_kokugo:
-                    chunk_size = 3 if len(questions) > 3 else len(questions)
-                    chunks = [questions[i:i + chunk_size] for i in range(0, len(questions), chunk_size)]
-                    total_pages_in_sec = len(chunks)
+                    # 1大問を原則1枚に集約。右から左へ並べる
+                    lines.append("#align(right)[")
+                    lines.append("  #stack(")
+                    lines.append("    dir: ltr,")
+                    lines.append("    spacing: 8mm,")
 
-                    for page_idx, q_chunk in enumerate(chunks):
-                        total_sheet_count += 1
-                        if total_sheet_count > 1:
-                            lines.append("#pagebreak()")
+                    for q in reversed(sec.questions):
+                        lines.append("    block(breakable: false)[")
+                        lines.append(f'      #align(center)[#text(weight: "bold", size: 9.5pt)[【{q.q_number}】]]')
+                        lines.append("      #v(5pt)")
 
-                        sub_title = f"その {page_idx + 1}" if total_pages_in_sec > 1 else ""
+                        if q.q_type == "char_grid":
+                            c = q.chars_limit or 60
+                            lines.append(f"      #vertical-grid(chars: {c})")
 
-                        lines.extend([
-                            "// 国語ヘッダー",
-                            "#grid(",
-                            "  columns: (1fr, auto),",
-                            "  align: (left + horizon, right + horizon),",
-                            f'  text(size: 13pt, weight: "bold")[{exam.year} {exam.university} {exam.subject} 解答用紙 【{sec.big_number}】 {sub_title}],',
-                            '  table(',
-                            '    columns: (55pt, 85pt),',
-                            '    rows: (20pt,),',
-                            '    align: center + horizon,',
-                            '    stroke: 0.5pt + luma(80),',
-                            '    [受験番号], []',
-                            '  )',
-                            ")",
-                            "#v(3pt)",
-                            "#line(length: 100%, stroke: 1pt)",
-                            "#v(14pt)",
-                            "",
-                            "// 右から左へ流れる横並び配置",
-                            "#align(right)[",
-                            "  #stack(",
-                            "    dir: ltr,",
-                            "    spacing: 16mm,",
-                        ])
+                        elif q.q_type in ["lined_box", "free_box"]:
+                            ln = q.line_count or 3
+                            lines.append(f"      #vertical-free-box(columns-count: {ln})")
 
-                        for q in reversed(q_chunk):
-                            lines.append("    block(breakable: false)[")
-                            lines.append(f'      #align(center)[#text(weight: "bold", size: 10pt)[【{q.q_number}】]]')
-                            lines.append("      #v(6pt)")
+                        elif q.q_type == "word_fill":
+                            symbols = q.symbols or ["A", "B", "C", "D", "E"]
+                            arr = ", ".join([f'"{s}"' for s in symbols])
+                            lines.append(f"      #vertical-kanji-box(symbols: ({arr},))")
 
-                            if q.q_type == "char_grid":
-                                c = q.chars_limit or 60
-                                lines.append(f"      #vertical-grid(chars: {c})")
+                        elif q.q_type == "table_fill":
+                            symbols = q.symbols or ["(1)", "(2)", "(3)"]
+                            arr = ", ".join([f'"{s}"' for s in symbols])
+                            lines.append(f"      #symbol-table(symbols: ({arr},))")
 
-                            elif q.q_type in ["lined_box", "free_box"]:
-                                ln = q.line_count or 3
-                                lines.append(f"      #vertical-free-box(columns-count: {ln})")
+                        lines.append("    ],")
 
-                            elif q.q_type == "word_fill":
-                                symbols = q.symbols or ["A", "B", "C", "D", "E"]
-                                arr = ", ".join([f'"{s}"' for s in symbols])
-                                lines.append(f"      #vertical-kanji-box(symbols: ({arr},))")
-
-                            elif q.q_type == "table_fill":
-                                symbols = q.symbols or ["(1)", "(2)", "(3)"]
-                                arr = ", ".join([f'"{s}"' for s in symbols])
-                                lines.append(f"      #symbol-table(symbols: ({arr},))")
-
-                            lines.append("    ],")
-
-                        lines.append("  )")
-                        lines.append("]")
-                        lines.append("")
+                    lines.append("  )")
+                    lines.append("]")
+                    lines.append("")
 
                 else:
-                    total_sheet_count += 1
-                    if total_sheet_count > 1:
-                        lines.append("#pagebreak()")
-
-                    lines.extend([
-                        "#grid(",
-                        "  columns: (1fr, auto),",
-                        "  align: (left + horizon, right + horizon),",
-                        f'  text(size: 13pt, weight: "bold")[{exam.year} {exam.university} {exam.subject} 解答用紙 【{sec.big_number}】],',
-                        '  table(',
-                        '    columns: (55pt, 85pt),',
-                        '    rows: (20pt,),',
-                        '    align: center + horizon,',
-                        '    stroke: 0.5pt + luma(80),',
-                        '    [受験番号], []',
-                        '  )',
-                        ")",
-                        "#v(3pt)",
-                        "#line(length: 100%, stroke: 0.8pt)",
-                        "#v(12pt)",
-                        "#columns(2, gutter: 16mm)[",
-                    ])
-
-                    for q in questions:
+                    lines.append("#columns(2, gutter: 16mm)[")
+                    for q in sec.questions:
                         lines.append("  #block(breakable: false)[")
                         lines.append(f'    #text(weight: "bold", size: 10pt)[【{q.q_number}】]')
                         lines.append("    #v(3pt)")
@@ -244,7 +208,6 @@ if uploaded_file is not None:
 
                         lines.append("    #v(14pt)")
                         lines.append("  ]")
-
                     lines.append("]")
                     lines.append("")
 
@@ -285,4 +248,3 @@ if uploaded_file is not None:
 
         except Exception as e:
             st.error("処理中にエラーが発生しました。PDFの形式をご確認の上、もう一度お試しください。")
-
