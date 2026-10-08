@@ -1,4 +1,5 @@
-﻿// ==================== 1. 国語コンポーネント ====================
+﻿// ==================== 国語コンポーネント ====================
+
 // 縦書き原稿用紙マス（1行20マス）
 #let vertical-grid(chars: 60) = {
   let lines-count = calc.ceil(chars / 20)
@@ -8,7 +9,7 @@
   block(breakable: false)[
     #stack(
       dir: ltr,
-      spacing: 2.0mm,
+      spacing: 2.2mm,
       ..range(lines-count).rev().map(line-idx => {
         let start-num = line-idx * 20
         let current-line-chars = calc.min(20, chars - start-num)
@@ -20,7 +21,7 @@
             rect(
               width: cell-w,
               height: cell-h,
-              stroke: 0.4pt + luma(100),
+              stroke: 0.4pt + luma(80),
               fill: white
             )[]
           })
@@ -30,7 +31,53 @@
   ]
 }
 
-// 記号・選択肢記入枠（縦型）
+// 漢字書き取り欄（A〜E縦並び・本番仕様）
+#let vertical-kanji-box(symbols: ("A", "B", "C", "D", "E")) = {
+  let cell-s = 32pt
+  let label-h = 16pt
+  block(breakable: false)[
+    #stack(
+      dir: ttb,
+      spacing: 4mm,
+      ..symbols.map(s => [
+        #stack(
+          dir: ttb,
+          spacing: 0pt,
+          rect(width: cell-s, height: label-h, stroke: 0.5pt + luma(80), fill: luma(245))[#align(center + horizon)[#text(size: 8.5pt, weight: "bold")[#s]]],
+          rect(width: cell-s, height: cell-s, stroke: 0.6pt + luma(70), fill: white)[]
+        )
+      ])
+    )
+  ]
+}
+
+// 縦書き自由記述（字数指定なし）
+#let vertical-free-box(columns-count: 3) = {
+  let col-w = 9.5mm
+  block(breakable: false)[
+    #rect(
+      stroke: 0.6pt + luma(70),
+      fill: white,
+      inset: 0pt,
+      [
+        #stack(
+          dir: ltr,
+          spacing: 0pt,
+          ..range(columns-count).map(i => [
+            #rect(
+              width: col-w,
+              height: 140mm,
+              stroke: (right: if i < columns-count - 1 { (paint: luma(180), dash: "dotted", thickness: 0.5pt) } else { none }),
+              fill: none
+            )[]
+          ])
+        )
+      ]
+    )
+  ]
+}
+
+// 縦型記号枠
 #let vertical-symbol-box(symbols: ("(1)", "(2)", "(3)")) = {
   let cell-w = 26pt
   let label-h = 16pt
@@ -51,54 +98,7 @@
   ]
 }
 
-// 漢字書き取り・短答欄（特大サイズ: 34pt x 38pt）
-#let vertical-kanji-box(symbols: ("A", "B", "C", "D", "E")) = {
-  let cell-w = 34pt
-  let label-h = 18pt
-  let cell-h = 38pt
-  block(breakable: false)[
-    #stack(
-      dir: ltr,
-      spacing: 4mm,
-      ..symbols.rev().map(s => [
-        #stack(
-          dir: ttb,
-          spacing: 0pt,
-          rect(width: cell-w, height: label-h, stroke: 0.5pt + luma(80), fill: luma(245))[#align(center + horizon)[#text(size: 9pt, weight: "bold")[#s]]],
-          rect(width: cell-w, height: cell-h, stroke: 0.6pt + luma(70), fill: white)[]
-        )
-      ])
-    )
-  ]
-}
-
-// 縦書き自由記述（字数指定なしの現代語訳や説明枠）
-#let vertical-free-box(columns-count: 3) = {
-  let col-w = 9.5mm
-  block(breakable: false)[
-    #rect(
-      stroke: 0.6pt + luma(70),
-      fill: white,
-      inset: 0pt,
-      [
-        #stack(
-          dir: ltr,
-          spacing: 0pt,
-          ..range(columns-count).map(i => [
-            #rect(
-              width: col-w,
-              height: 135mm,
-              stroke: (right: if i < columns-count - 1 { (paint: luma(180), dash: "dotted", thickness: 0.5pt) } else { none }),
-              fill: none
-            )[]
-          ])
-        )
-      ]
-    )
-  ]
-}
-
-// ==================== 2. 英語・共通コンポーネント ====================
+// ==================== 英語・共通コンポーネント ====================
 #let char-grid(chars: 100, cols-per-line: 20) = {
   let rows = calc.ceil(chars / cols-per-line)
   let cell-size = 6.5mm
@@ -124,7 +124,6 @@
     width: 100%,
     stroke: 0.6pt + luma(70),
     fill: white,
-    outset: 0pt,
     inset: 0pt,
     [
       #stack(
@@ -182,7 +181,7 @@
   )
 }
 
-// ==================== 3. 数学コンポーネント ====================
+// ==================== 数学コンポーネント ====================
 #let math-calc-box(height-pt: 480pt, divided: true) = {
   rect(
     width: 100%,
