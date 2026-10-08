@@ -55,11 +55,11 @@ if uploaded_file is not None:
         progress_bar = st.progress(0)
 
         try:
-            progress_text.text("1/3: PDFデータを解析準備中...")
+            progress_text.text("1/3: PDFデータを解析中...")
             progress_bar.progress(20)
             pdf_bytes = uploaded_file.read()
 
-            progress_text.text("2/3: 設問構造の解析中...")
+            progress_text.text("2/3: 設問構造を抽出中...")
             progress_bar.progress(50)
 
             client = genai.Client(api_key=api_key)
@@ -72,28 +72,32 @@ if uploaded_file is not None:
 """
             elif selected_subject == "国語":
                 prompt = """
-あなたは大学入試の国語解答用紙を設計する組版専門家です。
-問題PDFから国語の設問構造を抽出してください。
+あなたは大学入試の国語解答用紙を設計する専門家です。
+問題PDFに存在する各大問・各小問を、問題の掲載順通りに一問も漏らさず正確に抽出してください。
+
 【厳格ルール】
-1. 国語の解答欄は全て縦書きです。横書きの解答欄（lined_box, reorderなど）は絶対に出力しないでください。
-2. 「○字以内」「○字程度」の記述は q_type="char_grid", chars_limit に字数を設定。
-3. 漢字書き取り、語句短答は q_type="word_fill", symbols に設問記号（["一","二"]や["A","B"]等）を設定。
-4. 字数指定のない説明・現代語訳・自由記述は q_type="free_box", line_count に行数（2〜4）を設定。
-5. 記号選択問題は q_type="table_fill", symbols に小問番号を設定。
-6. 小問（問一、問二、イ、ロ等）は漏れなく分割してください。
-7. instructionは空文字にしてください。
+1. 小問の完全網羅: 問一、問二、問三…を絶対に省略・合算しないでください。
+2. 小問内に複数の解答箇所がある場合（例: 問一に(1)〜(5)がある、問二に(ア)(イ)がある等）:
+   - 記号選択なら symbols に ["(1)", "(2)", "(3)", "(4)", "(5)"] のようにリスト化して1つのQuestionにまとめてください。
+   - 漢字書き取りなら symbols に ["A", "B", "C", "D", "E"] を設定して1つのQuestionにまとめてください。
+3. 解答タイプの選定:
+   - 「○字以内」「○字程度」の記述: q_type="char_grid", chars_limit に字数を設定。
+   - 漢字書き取り: q_type="word_fill", symbols に記号一覧。
+   - 記号選択: q_type="table_fill", symbols に記号一覧。
+   - 字数指定のない説明・現代語訳・心情説明: q_type="free_box", line_count に行数（通常は2〜3行）を設定。
+4. instructionは不要です（空文字にしてください）。
 """
             else:
                 prompt = f"""
-あなたは大学入試の解答用紙を設計する組版専門家です。
-提供された問題PDFから、{selected_subject}の解答欄に必要な枠構造を抽出してください。
+あなたは大学入試の解答用紙を設計する専門家です。
+提供された問題PDFから、{selected_subject}の設問構造を一問も漏らさず正確に抽出してください。
 【ルール】
-1. 小問・枝問は分割してください。
+1. 小問・枝問は省略せず抽出してください。
 2. 字数制限のある記述は q_type="char_grid", chars_limit に数値を設定。
 3. 語句整序は q_type="reorder", targets に指定位置を設定。
-4. 選択肢記号問題は q_type="table_fill", symbols に記号を設定。
-5. 単語短答は q_type="word_fill"。
-6. 記述・論述・和訳・英作文は q_type="lined_box"。模範解答を想定し余裕を持った line_count を設定。
+4. 選択肢記号問題は q_type="table_fill", symbols に小問記号を設定。
+5. 単語短答は q_type="word_fill", symbols に小問記号を設定。
+6. 説明・和訳・英作文は q_type="lined_box", line_count に行数を設定。
 7. instructionは空文字にしてください。
 """
 
@@ -106,7 +110,7 @@ if uploaded_file is not None:
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
                     response_schema=ExamPaper,
-                    temperature=0.1,
+                    temperature=0.0,
                 ),
             )
 
@@ -139,7 +143,6 @@ if uploaded_file is not None:
                 if total_sheet_count > 1:
                     lines.append("#pagebreak()")
 
-                # 記入欄を完全な白（fill: white）にした本番ヘッダー
                 lines.extend([
                     "// 本番入試仕様ヘッダー",
                     "#grid(",
@@ -171,6 +174,7 @@ if uploaded_file is not None:
                 ])
 
                 if selected_subject == "国語":
+                    # 国語: すべて縦書き部品で右から左へ並べる
                     lines.append("#align(right)[")
                     lines.append("  #stack(")
                     lines.append("    dir: ltr,")
@@ -189,9 +193,10 @@ if uploaded_file is not None:
                             arr = ", ".join([f'"{s}"' for s in symbols])
                             lines.append(f"      #vertical-kanji-box(symbols: ({arr},))")
                         elif q.q_type == "table_fill":
+                            # 国語専用の大きな縦型記号枠
                             symbols = q.symbols or ["(1)", "(2)", "(3)"]
                             arr = ", ".join([f'"{s}"' for s in symbols])
-                            lines.append(f"      #symbol-table(symbols: ({arr},))")
+                            lines.append(f"      #vertical-symbol-box(symbols: ({arr},))")
                         else:
                             ln = q.line_count or 3
                             lines.append(f"      #vertical-free-box(columns-count: {ln})")
