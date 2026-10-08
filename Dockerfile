@@ -1,10 +1,14 @@
 ﻿FROM python:3.11-slim
 
-# Typstと必要なツールをインストール
+# Typstと日本語フォント（IPAフォント・Notoフォント）をインストール
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     xz-utils \
     fonts-noto-cjk \
+    fonts-ipafont-gothic \
+    fonts-ipaexfont-gothic \
+    fontconfig \
+    && fc-cache -fv \
     && rm -rf /var/lib/apt/lists/*
 
 # Typstバイナリのダウンロード・配置
