@@ -6,7 +6,7 @@ from google import genai
 from google.genai import types
 from schemas.question_schema import ExamPaper
 
-# GoogleフォームのURL（必要に応じて差し替え可能）
+# GoogleフォームのURL
 GOOGLE_FORM_URL = "https://forms.gle/"
 
 st.set_page_config(
@@ -16,14 +16,14 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# モダンなデザインスタイル
+# モダンUIスタイル
 st.markdown("""
 <style>
-    .block-container { padding-top: 2rem; padding-bottom: 2rem; max-width: 850px; }
-    .header-box { text-align: center; margin-bottom: 2rem; }
-    .header-title { font-size: 2rem; font-weight: 800; color: #1e293b; margin-bottom: 0.5rem; }
+    .block-container { padding-top: 2rem; padding-bottom: 2rem; max-width: 860px; }
+    .header-box { text-align: center; margin-bottom: 1.8rem; }
+    .header-title { font-size: 2.1rem; font-weight: 800; color: #1e293b; margin-bottom: 0.4rem; }
     .header-sub { font-size: 1rem; color: #64748b; }
-    div[data-testid="stFileUploader"] { margin-bottom: 1.5rem; border: 2px dashed #cbd5e1; border-radius: 12px; padding: 10px; }
+    div[data-testid="stFileUploader"] { margin-bottom: 1.2rem; border: 2px dashed #cbd5e1; border-radius: 12px; padding: 10px; }
     .stButton>button { width: 100%; border-radius: 10px; height: 3.4rem; font-weight: bold; font-size: 1.15rem; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; border: none; }
     .feedback-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.2rem; margin-top: 2rem; text-align: center; }
 </style>
@@ -32,11 +32,18 @@ st.markdown("""
 st.markdown("""
 <div class="header-box">
     <div class="header-title">📝 入試解答用紙ジェネレーター</div>
-    <div class="header-sub">問題PDFをアップロードするだけで、本番仕様のB4解答用紙を自動組版します。</div>
+    <div class="header-sub">問題PDFから入試本番仕様のB4解答用紙を自動組版します。</div>
 </div>
 """, unsafe_allow_html=True)
 
-uploaded_file = st.file_uploader("過去問PDFを選択してください（英語・国語・数学・社会・理科）", type=["pdf"])
+# 1. 教科選択
+selected_subject = st.radio(
+    "科目を選択してください",
+    options=["英語", "国語", "数学", "地歴・社会", "理科"],
+    horizontal=True
+)
+
+uploaded_file = st.file_uploader("問題PDFをアップロード", type=["pdf"])
 
 if uploaded_file is not None:
     st.success(f"📎 読み込み完了: {uploaded_file.name}")
@@ -55,29 +62,42 @@ if uploaded_file is not None:
             progress_bar.progress(20)
             pdf_bytes = uploaded_file.read()
 
-            progress_text.text("2/3: 設問構造の解析と解答スペースの自動算出中...")
+            progress_text.text("2/3: 設問構造の解析中...")
             progress_bar.progress(50)
 
             client = genai.Client(api_key=api_key)
-            prompt = """
-あなたは大学入試の解答用紙を設計する最高峰の組版専門家です。
-提供された問題PDFを詳しく精査し、解答用紙のレイアウトに必要な枠構造「のみ」を漏れなく正確に抽出してください。
 
-【思考と枠サイズの算出ルール】
-1. 科目（subject）を "国語", "英語", "数学", "社会", "理科" のいずれかで特定してください。
-2. 字数制限が明記されていない記述・説明・和訳問題について:
-   - あなた自身が頭の中で一度その設問を実際に解いて模範解答を作成してください。
-   - その模範解答の文字数・行数を計測し、受験生が余裕をもって書けるように「1.3〜1.5倍のゆとり」を持たせた行数（line_count）を決定してください。
-3. 設問の完全分離:
-   - 1つの問に枝問（イ・ロ、(1)(2)など）がある場合は独立した小問として分割してください。
-4. 解答欄タイプの選定:
-   - char_grid: 「○字以内」の指定がある論述・要約（chars_limitにその字数を設定）。
-   - vertical_grid: 国語の字数指定（自動で判別）。
-   - word_fill: 漢字書き取り、用語穴埋め、英単語短答。
-   - lined_box: 英文和訳、自由英作文、説明記述。
-   - math_box: 数学・物理・化学などの計算記述・導出過程枠。
-   - table_fill: 選択肢記号問題。
-5. 解答用紙には問題文・指示文は不要です（instructionは空文字にしてください）。
+            # 科目ごとの最適化プロンプト
+            if selected_subject == "数学":
+                prompt = """
+あなたは大学入試の解答用紙を設計する組版専門家です。
+問題PDFから、各大問（第1問、第2問、大問1など）の番号とタイトルのみを抽出してください。
+小問（(1), (2)など）の枠は不要です。各セクションの questions には、q_number="解答欄", q_type="math_box" の要素を1つだけ含めてください。
+"""
+            elif selected_subject == "国語":
+                prompt = """
+あなたは大学入試の解答用紙を設計する組版専門家です。
+問題PDFから国語の設問構造を抽出してください。
+【ルール】
+1. 小問・枝問（イ・ロ、A〜Eなど）は独立したQuestion要素として分割してください。
+2. 「○字以内」「○字程度」の論述は q_type="char_grid", chars_limit に字数を設定。
+3. 漢字書き取り、語句短答は q_type="word_fill", symbols に記号リスト（["A","B"]等）を設定。
+4. 字数指定のない説明・現代語訳は q_type="lined_box", line_count に行数（2〜3）を設定。
+5. 選択肢問題は q_type="table_fill" としてください。
+6. instructionは空文字にしてください。
+"""
+            else:
+                prompt = f"""
+あなたは大学入試の解答用紙を設計する組版専門家です。
+提供された問題PDFから、{selected_subject}の解答欄に必要な枠構造を抽出してください。
+【ルール】
+1. 小問・枝問は分割してください。
+2. 字数制限のある記述は q_type="char_grid", chars_limit に数値を設定。
+3. 語句整序は q_type="reorder", targets に指定位置を設定。
+4. 選択肢記号問題は q_type="table_fill", symbols に記号を設定。
+5. 単語短答は q_type="word_fill"。
+6. 記述・論述・和訳・英作文は q_type="lined_box"。模範解答を想定し余裕を持った line_count を設定。
+7. instructionは空文字にしてください。
 """
 
             response = client.models.generate_content(
@@ -94,11 +114,10 @@ if uploaded_file is not None:
             )
 
             exam = ExamPaper.model_validate_json(response.text)
+            exam.subject = selected_subject
 
             progress_text.text("3/3: B4本番用紙を組版中...")
             progress_bar.progress(80)
-
-            is_kokugo = ("国語" in exam.subject)
 
             lines = [
                 '#import "components/components.typ": *',
@@ -106,7 +125,7 @@ if uploaded_file is not None:
                 '#set page(',
                 '  paper: "jis-b4",',
                 '  flipped: true,',
-                '  margin: (x: 16mm, top: 12mm, bottom: 12mm)',
+                '  margin: (x: 16mm, top: 10mm, bottom: 12mm)',
                 ')',
                 '#set text(font: ("Noto Serif CJK JP", "Noto Sans CJK JP", "IPAexGothic", "IPAGothic", "Yu Gothic"), lang: "ja", size: 9.5pt)',
                 "",
@@ -120,32 +139,42 @@ if uploaded_file is not None:
                 if total_sheet_count > 1:
                     lines.append("#pagebreak()")
 
+                # 本番仕様ヘッダー
                 lines.extend([
-                    "// ヘッダー部",
+                    "// 本番入試仕様ヘッダー",
                     "#grid(",
                     "  columns: (1fr, auto),",
-                    "  align: (left + horizon, right + horizon),",
-                    f'  text(size: 13pt, weight: "bold")[{exam.year} {exam.university} {exam.subject} 解答用紙 【{sec.big_number}】],',
-                    '  table(',
-                    '    columns: (55pt, 85pt),',
-                    '    rows: (20pt,),',
-                    '    align: center + horizon,',
-                    '    stroke: 0.5pt + luma(80),',
-                    '    [受験番号], []',
-                    '  )',
+                    "  gutter: 12pt,",
+                    "  align: (left + top, right + top),",
+                    "  [",
+                    f'    #text(size: 13pt, weight: "bold")[{exam.year} {exam.university} {exam.subject} 解答用紙 【{sec.big_number}】]',
+                    "    #v(3pt)",
+                    '    #text(size: 7.5pt, fill: luma(90))[※受験番号および氏名を正確に記入し、※印欄には何も記入してはならない。]',
+                    "  ],",
+                    "  [",
+                    "    #table(",
+                    "      columns: (45pt, 65pt, 35pt, 75pt, 45pt),",
+                    "      rows: (18pt, 22pt),",
+                    "      stroke: 0.5pt + luma(80),",
+                    "      align: center + horizon,",
+                    '      fill: (col, row) => if row == 0 { luma(245) } else { none },',
+                    '      [受験番号], table.cell(rowspan: 2)[], [氏名], table.cell(rowspan: 2)[], table.cell(fill: luma(235))[※得点],',
+                    '      [], [], table.cell(stroke: (top: 0.5pt + luma(80)))[]',
+                    "    )",
+                    "  ]",
                     ")",
-                    "#v(3pt)",
-                    "#line(length: 100%, stroke: 1pt)",
+                    "#v(2pt)",
+                    "#line(length: 100%, stroke: 1.2pt)",
                     "#v(10pt)",
                     "",
                 ])
 
-                if is_kokugo:
-                    # 国語: 1大問を原則1枚に集約し、右から左へ並べる
+                if selected_subject == "国語":
+                    # 国語: 1大問＝1枚に集約し、右から左へ並べる
                     lines.append("#align(right)[")
                     lines.append("  #stack(")
-                    lines.append("    dir: ltr,",
-                    "    spacing: 8mm,")
+                    lines.append("    dir: ltr,")
+                    lines.append("    spacing: 8.5mm,")
 
                     for q in reversed(questions):
                         lines.append("    block(breakable: false)[")
@@ -173,18 +202,9 @@ if uploaded_file is not None:
                     lines.append("]")
                     lines.append("")
 
-                elif "数学" in exam.subject:
-                    # 数学: ゆったりとした計算・論述余白枠
-                    lines.append("#columns(2, gutter: 16mm)[")
-                    for q in questions:
-                        lines.append("  #block(breakable: false)[")
-                        lines.append(f'    #text(weight: "bold", size: 10pt)[【{q.q_number}】]')
-                        lines.append("    #v(3pt)")
-                        # 推定行数や大問規模に合わせて高さを決定（デフォルト180pt）
-                        lines.append("    #math-calc-box(height-pt: 190pt, divided: false)")
-                        lines.append("    #v(10pt)")
-                        lines.append("  ]")
-                    lines.append("]")
+                elif selected_subject == "数学":
+                    # 数学: 1大問につき広大な計算・論述余白枠を1枚配置
+                    lines.append("  #math-calc-box(height-pt: 480pt, divided: true)")
                     lines.append("")
 
                 else:
@@ -235,7 +255,7 @@ if uploaded_file is not None:
             )
 
             if res.returncode != 0:
-                st.error(f"Typstコンパイルエラー:\n{res.stderr}")
+                st.error("組版処理中にエラーが発生しました。設問形式をご確認ください。")
                 st.stop()
 
             with open(pdf_path, "rb") as f:
@@ -254,7 +274,6 @@ if uploaded_file is not None:
                 type="primary"
             )
 
-            # フィードバック案内
             st.markdown(f"""
             <div class="feedback-box">
                 <div style="font-weight: bold; margin-bottom: 0.5rem; color: #334155;">💬 ご意見・改善要望・不具合報告</div>
@@ -271,6 +290,4 @@ if uploaded_file is not None:
             """, unsafe_allow_html=True)
 
         except Exception as e:
-            st.error(f"エラー詳細: {str(e)}")
-
-
+            st.error("処理中にエラーが発生しました。PDFの形式をご確認の上、もう一度お試しください。")
