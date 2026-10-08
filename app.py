@@ -44,18 +44,21 @@ uploaded_file = st.file_uploader("問題PDFをアップロード", type=["pdf"])
 
 def get_q_width_mm(q):
     """大枠(rect)のパディングを含めた物理幅(mm)を算出し、はみ出しを防ぐ"""
-    base_gap = 14.0 # 枠組みと余白分
+    base_gap = 14.0
     if q.q_type == "char_grid":
         chars = q.chars_limit or 60
         lines = (chars + 19) // 20
         w = lines * 8.7
     elif q.q_type == "word_fill":
         sym_count = len(q.symbols) if q.symbols else 5
-        cols = (sym_count + 4) // 5  # 5個で折り返し
+        cols = (sym_count + 4) // 5
         w = cols * 17.0
+    elif q.q_type == "exact_word_fill":
+        chars = q.chars_limit or 4
+        w = chars * 8.5
     elif q.q_type == "table_fill":
         sym_count = len(q.symbols) if q.symbols else 5
-        cols = (sym_count + 5) // 6  # 6個で折り返し
+        cols = (sym_count + 5) // 6
         w = cols * 14.0
     elif q.q_type in ["lined_box", "free_box"]:
         lines = q.line_count or 2
@@ -81,37 +84,78 @@ if uploaded_file is not None:
             progress_bar.progress(20)
             pdf_bytes = uploaded_file.read()
 
-            progress_text.text(f"2/3: {selected_subject}専用エンジンで設問解析中...")
+            progress_text.text(f"2/3: 【{selected_subject}】専用エンジンで設問解析中...")
             progress_bar.progress(50)
 
             client = genai.Client(api_key=api_key)
 
+            # ==========================================
+            # 教科別 完全分離プロンプト
+            # ==========================================
             if selected_subject == "国語":
                 prompt = """
-You are a highly precise typesetter for Japanese university entrance exams.
-Extract the EXACT question structure from the PDF.
+You are a highly precise typesetter for Japanese entrance exams. Read ONLY the "設問" (Questions) section.
+Mentally solve the question first to determine the box type and size.
+ZERO HALLUCINATION: NEVER invent questions or options (like ア, イ) not explicitly written.
 
-[CRITICAL RULES]
-1. ZERO HALLUCINATION: NEVER create fake choices, symbols, or questions.
-2. If a question is a descriptive text (e.g. "説明せよ"), DO NOT output `table_fill`. Use `free_box` (no limit) or `char_grid` (if "○字以内").
-3. Mentally solve descriptive questions to estimate the `line_count` (usually 2, 3, or 4 lines).
-4. For Kanji/Vocab extraction: use `word_fill` and set `symbols`.
-5. DO NOT GUESS `university` or `year`. If not clearly printed, leave them as empty strings ("").
-6. Set `instruction` to "".
+1. EXACT CHAR COUNT (e.g., "二字で抜き出せ", "四字で答えよ"):
+   Use `q_type="exact_word_fill"`, set `chars_limit` to the exact number (e.g., 2, 4), and `symbols` to labels (e.g., ["A", "B"]).
+2. KANJI/KANA:
+   Use `q_type="word_fill"`, set `symbols` to exact labels (e.g., ["ア", "イ", "ウ"]).
+3. DESCRIPTION (e.g., "説明せよ"):
+   If "○字以内", use `q_type="char_grid"`, set `chars_limit`.
+   If no limit, use `q_type="free_box"`, estimate `line_count` (2 to 4).
+4. MULTIPLE CHOICE: Use `q_type="table_fill"`, set `symbols`.
+5. DO NOT guess `university` or `year`. Set `instruction`="".
+"""
+            elif selected_subject == "英語":
+                prompt = """
+You are an expert English entrance exam typesetter. Mentally solve questions to estimate required space.
+ZERO HALLUCINATION: Do not invent questions.
+
+1. MULTIPLE CHOICE (e.g., Q1-Q5): Use `q_type="table_fill"`, set `symbols`.
+2. WORD ORDERING (並び替え): Use `q_type="reorder"`, set `targets` (e.g., ["3rd", "5th"]).
+3. SHORT ANSWER/FILL-IN-BLANK: Use `q_type="word_fill"`, set `symbols`.
+4. TRANSLATION/EXPLANATION (和訳・説明):
+   If character limit exists, use `q_type="char_grid"`.
+   If no limit, use `q_type="lined_box"` and estimate `line_count` (3 to 6).
+5. FREE ESSAY (自由英作文): Use `q_type="lined_box"`, estimate `line_count` (8 to 12).
+6. DO NOT guess `university` or `year`. Set `instruction`="".
 """
             elif selected_subject == "数学":
                 prompt = """
-Extract ONLY the main question numbers (e.g., 第1問, 第2問) from the Math exam PDF.
-DO NOT extract sub-questions. Output ONE question per section with `q_number="解答欄"`, `q_type="math_box"`.
-Do not guess university or year.
+You are a Math exam typesetter.
+Extract ONLY the main question numbers (e.g., 第1問, 第2問).
+DO NOT extract sub-questions like (1), (2).
+For each main section, output exactly ONE question with `q_number="解答欄"` and `q_type="math_box"`.
+DO NOT guess `university` or `year`. Set `instruction`="".
+"""
+            elif selected_subject == "地歴・社会":
+                prompt = """
+You are a History/Geography exam typesetter. Mentally solve questions to estimate space.
+ZERO HALLUCINATION.
+
+1. SHORT TERMS/BLANKS: Use `q_type="word_fill"`, set `symbols`.
+2. MULTIPLE CHOICE: Use `q_type="table_fill"`, set `symbols`.
+3. ESSAY/DESCRIPTION (論述):
+   If character limit exists (e.g., "400字"), use `q_type="char_grid"`, set `chars_limit`.
+   If no limit (short description), use `q_type="lined_box"`, estimate `line_count` (2 to 4).
+4. DO NOT guess `university` or `year`. Set `instruction`="".
+"""
+            elif selected_subject == "理科":
+                prompt = """
+You are a Science (Physics/Chemistry/Biology) exam typesetter. Mentally solve questions to estimate space.
+ZERO HALLUCINATION.
+
+1. MULTIPLE CHOICE / SHORT ANSWER: Use `q_type="table_fill"` or `q_type="word_fill"`.
+2. CALCULATION / PROCESS (計算過程・描画): Use `q_type="math_box"`.
+3. DESCRIPTION (論述): Use `q_type="lined_box"` or `q_type="char_grid"`.
+4. DO NOT guess `university` or `year`. Set `instruction`="".
 """
             else:
-                prompt = f"""
-Extract the precise question structure for the {selected_subject} exam.
-Mentally solve questions to estimate `line_count` or `chars_limit`.
-Never invent questions. Do not guess university or year if missing.
-"""
+                prompt = "Extract questions. Mentally solve them. Set instruction to empty string."
 
+            # 無料枠で最も多く利用できる flash-lite に固定
             response = client.models.generate_content(
                 model="gemini-3.5-flash-lite",
                 contents=[
@@ -192,7 +236,6 @@ Never invent questions. Do not guess university or year if missing.
                         lines.append("        spacing: 9mm,")
 
                         for q in reversed(chunk):
-                            # ★ ここにあった `#rect` の `#` を削除しました（文法エラー解消）
                             lines.append("        rect(")
                             lines.append("          stroke: 0.8pt + luma(80),")
                             lines.append("          inset: 12pt,")
@@ -205,6 +248,11 @@ Never invent questions. Do not guess university or year if missing.
                             if q.q_type == "char_grid":
                                 c = q.chars_limit or 60
                                 lines.append(f"            #vertical-grid(chars: {c})")
+                            elif q.q_type == "exact_word_fill":
+                                symbols = q.symbols or [""]
+                                arr = ", ".join([f'"{s}"' for s in symbols])
+                                c = q.chars_limit or 4
+                                lines.append(f"            #exact-char-box(symbols: ({arr},), chars: {c})")
                             elif q.q_type == "word_fill":
                                 symbols = q.symbols or ["ア", "イ", "ウ", "エ", "オ"]
                                 arr = ", ".join([f'"{s}"' for s in symbols])
@@ -302,6 +350,11 @@ Never invent questions. Do not guess university or year if missing.
                         if q.q_type == "char_grid":
                             c = q.chars_limit or 100
                             lines.append(f"    #char-grid(chars: {c})")
+                        elif q.q_type == "exact_word_fill":
+                            symbols = q.symbols or [""]
+                            arr = ", ".join([f'"{s}"' for s in symbols])
+                            c = q.chars_limit or 4
+                            lines.append(f"    #exact-char-box(symbols: ({arr},), chars: {c})")
                         elif q.q_type in ["lined_box", "free_box"]:
                             ln = q.line_count or 6
                             lines.append(f"    #lined-box(lines: {ln})")
