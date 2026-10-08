@@ -1,26 +1,27 @@
 ﻿// ==================== 1. 国語 本番仕様コンポーネント ====================
 
-// 漢字書き取り枠（縦一列・大きめの正方形白枠）
+// 漢字書き取り枠（二字熟語などを縦にしっかり書ける縦長・特大サイズ）
 #let vertical-kanji-box(symbols: ("ア", "イ", "ウ", "エ", "オ")) = {
-  let cell-s = 30pt
-  let label-h = 16pt
+  let cell-w = 36pt // 横幅をゆったり拡張（約12.7mm）
+  let label-h = 16pt // 見出しの高さ
+  let input-h = 95pt // 縦の高さ（約33.5mm）
   block(breakable: false)[
     #stack(
       dir: ttb,
-      spacing: 3.5mm,
+      spacing: 4mm,
       ..symbols.map(s => [
         #stack(
           dir: ttb,
           spacing: 0pt,
-          rect(width: cell-s, height: label-h, stroke: 0.5pt + luma(80), fill: luma(245))[#align(center + horizon)[#text(size: 8.5pt, weight: "bold")[#s]]],
-          rect(width: cell-s, height: cell-s, stroke: 0.6pt + luma(70), fill: white)[]
+          rect(width: cell-w, height: label-h, stroke: 0.5pt + luma(80), fill: luma(245))[#align(center + horizon)[#text(size: 8.5pt, weight: "bold")[#s]]],
+          rect(width: cell-w, height: input-h, stroke: 0.6pt + luma(70), fill: white)[]
         )
       ])
     )
   ]
 }
 
-// 縦書き自由記述枠（東大・難関大の記述標準：行数2〜4行、高さ約140mm）
+// 縦書き自由記述枠
 #let vertical-free-box(columns-count: 2) = {
   let col-w = 11mm
   block(breakable: false)[
@@ -46,7 +47,7 @@
   ]
 }
 
-// 字数指定マス目（○字以内の指定がある場合のみ使用）
+// 字数指定マス目
 #let vertical-grid(chars: 60) = {
   let lines-count = calc.ceil(chars / 20)
   let cell-w = 6.5mm
@@ -73,7 +74,7 @@
   ]
 }
 
-// 記号選択枠（問題にア〜エ等の選択肢が明記されている場合のみ）
+// 記号選択枠
 #let vertical-symbol-box(symbols: ("(1)", "(2)")) = {
   let cell-w = 28pt
   let label-h = 16pt
