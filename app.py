@@ -235,7 +235,7 @@ if uploaded_file is not None:
             )
 
             if res.returncode != 0:
-                st.error("組版処理中にエラーが発生しました。設問形式をご確認ください。")
+                st.error(f"Typstコンパイルエラー:\n{res.stderr}")
                 st.stop()
 
             with open(pdf_path, "rb") as f:
@@ -272,4 +272,5 @@ if uploaded_file is not None:
 
         except Exception as e:
             st.error(f"エラー詳細: {str(e)}")
+
 
