@@ -30,7 +30,7 @@
   ]
 }
 
-// 国語専用：縦型 記号・選択肢記入枠（しっかり書ける大きめサイズ）
+// 記号・選択肢記入枠（縦型）
 #let vertical-symbol-box(symbols: ("(1)", "(2)", "(3)")) = {
   let cell-w = 26pt
   let label-h = 16pt
@@ -51,19 +51,21 @@
   ]
 }
 
-// 漢字書き取り・短答欄（大きめの正方形マス）
+// 漢字書き取り・短答欄（特大サイズ: 34pt x 38pt）
 #let vertical-kanji-box(symbols: ("A", "B", "C", "D", "E")) = {
-  let cell-s = 26pt
+  let cell-w = 34pt
+  let label-h = 18pt
+  let cell-h = 38pt
   block(breakable: false)[
     #stack(
       dir: ltr,
-      spacing: 3.5mm,
+      spacing: 4mm,
       ..symbols.rev().map(s => [
         #stack(
           dir: ttb,
           spacing: 0pt,
-          rect(width: cell-s, height: 16pt, stroke: 0.5pt + luma(80), fill: luma(245))[#align(center + horizon)[#text(size: 8.5pt, weight: "bold")[#s]]],
-          rect(width: cell-s, height: cell-s, stroke: 0.5pt + luma(80), fill: white)[]
+          rect(width: cell-w, height: label-h, stroke: 0.5pt + luma(80), fill: luma(245))[#align(center + horizon)[#text(size: 9pt, weight: "bold")[#s]]],
+          rect(width: cell-w, height: cell-h, stroke: 0.6pt + luma(70), fill: white)[]
         )
       ])
     )
@@ -155,7 +157,6 @@
   )
 }
 
-// 横書き用の記号テーブル（十分な高さを確保）
 #let symbol-table(symbols: ("(1)", "(2)", "(3)", "(4)")) = {
   let count = symbols.len()
   let max-cols = calc.min(count, 6)

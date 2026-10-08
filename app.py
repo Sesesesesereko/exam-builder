@@ -68,29 +68,32 @@ if uploaded_file is not None:
                 prompt = """
 あなたは大学入試の解答用紙を設計する組版専門家です。
 問題PDFから、各大問（第1問、第2問など）の番号とタイトルのみを抽出してください。
+PDFの表紙や問題文に明記されていない場合、universityは空文字、yearは空文字にしてください。推測で補完してはいけません。
 各セクションの questions には、q_number="解答欄", q_type="math_box" の要素を1つだけ含めてください。
 """
             elif selected_subject == "国語":
                 prompt = """
 あなたは大学入試の国語解答用紙を設計する専門家です。
 問題PDFに存在する各大問・各小問を、問題の掲載順通りに一問も漏らさず正確に抽出してください。
+PDFに大学名や年度が明記されていない場合、universityは空文字、yearは空文字にしてください。勝手に推測してはいけません。
 
 【厳格ルール】
 1. 小問の完全網羅: 問一、問二、問三…を絶対に省略・合算しないでください。
-2. 小問内に複数の解答箇所がある場合（例: 問一に(1)〜(5)がある、問二に(ア)(イ)がある等）:
-   - 記号選択なら symbols に ["(1)", "(2)", "(3)", "(4)", "(5)"] のようにリスト化して1つのQuestionにまとめてください。
-   - 漢字書き取りなら symbols に ["A", "B", "C", "D", "E"] を設定して1つのQuestionにまとめてください。
+2. 小問内に複数の解答箇所がある場合:
+   - 記号選択なら symbols に ["(1)", "(2)", "(3)"] などを設定。
+   - 漢字書き取りなら symbols に ["A", "B", "C", "D", "E"] や ["ア", "イ"] などを設定。
 3. 解答タイプの選定:
    - 「○字以内」「○字程度」の記述: q_type="char_grid", chars_limit に字数を設定。
    - 漢字書き取り: q_type="word_fill", symbols に記号一覧。
    - 記号選択: q_type="table_fill", symbols に記号一覧。
-   - 字数指定のない説明・現代語訳・心情説明: q_type="free_box", line_count に行数（通常は2〜3行）を設定。
-4. instructionは不要です（空文字にしてください）。
+   - 字数指定のない説明・現代語訳・心情説明: q_type="free_box", line_count に行数（2〜3行）を設定。
+4. instructionは空文字にしてください。
 """
             else:
                 prompt = f"""
 あなたは大学入試の解答用紙を設計する専門家です。
 提供された問題PDFから、{selected_subject}の設問構造を一問も漏らさず正確に抽出してください。
+PDFに大学名や年度が明記されていない場合、universityは空文字、yearは空文字にしてください。推測で補完してはいけません。
 【ルール】
 1. 小問・枝問は省略せず抽出してください。
 2. 字数制限のある記述は q_type="char_grid", chars_limit に数値を設定。
@@ -120,8 +123,19 @@ if uploaded_file is not None:
             progress_text.text("3/3: B4本番用紙を組版中...")
             progress_bar.progress(80)
 
-            univ_display = exam.university if exam.university and "unknown" not in exam.university.lower() else "＿＿＿＿＿＿ 大学"
-            year_display = exam.year if exam.year and "unknown" not in str(exam.year).lower() else "＿＿＿＿ 年度"
+            # 大学名・年度の厳密な判定（曖昧・推測・不明な場合は「  大学」「  年度」にする）
+            raw_univ = (exam.university or "").strip()
+            if not raw_univ or any(k in raw_univ.lower() for k in ["unknown", "令和", "大学", "未定", "none"]):
+                # 正確な大学名が入っていない場合は手書き用スペース
+                univ_display = "     大学"
+            else:
+                univ_display = f"{raw_univ}大学" if not raw_univ.endswith("大学") else raw_univ
+
+            raw_year = (str(exam.year) if exam.year else "").strip()
+            if not raw_year or any(k in raw_year.lower() for k in ["unknown", "none", "未定"]):
+                year_display = "  年度"
+            else:
+                year_display = f"{raw_year}年度" if not raw_year.endswith("年度") else raw_year
 
             lines = [
                 '#import "components/components.typ": *',
@@ -174,7 +188,6 @@ if uploaded_file is not None:
                 ])
 
                 if selected_subject == "国語":
-                    # 国語: すべて縦書き部品で右から左へ並べる
                     lines.append("#align(right)[")
                     lines.append("  #stack(")
                     lines.append("    dir: ltr,")
@@ -193,7 +206,6 @@ if uploaded_file is not None:
                             arr = ", ".join([f'"{s}"' for s in symbols])
                             lines.append(f"      #vertical-kanji-box(symbols: ({arr},))")
                         elif q.q_type == "table_fill":
-                            # 国語専用の大きな縦型記号枠
                             symbols = q.symbols or ["(1)", "(2)", "(3)"]
                             arr = ", ".join([f'"{s}"' for s in symbols])
                             lines.append(f"      #vertical-symbol-box(symbols: ({arr},))")
@@ -268,7 +280,7 @@ if uploaded_file is not None:
             progress_text.text("✨ 本番仕様の解答用紙が完成しました！")
             st.balloons()
 
-            file_display_name = f"{exam.university or '大学'}_{exam.subject}_解答用紙.pdf".replace(" ", "_")
+            file_display_name = f"{exam.subject}_解答用紙.pdf"
             st.download_button(
                 label="📥 B4解答用紙PDFをダウンロード",
                 data=result_pdf_bytes,
