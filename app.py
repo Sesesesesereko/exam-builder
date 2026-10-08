@@ -54,14 +54,14 @@ def get_q_width_mm(q):
         lines = (chars + 19) // 20
         w = lines * 8.7
     elif q.q_type == "word_fill":
-        sym_count = len(q.symbols) if q.symbols else 5
+        sym_count = len(q.symbols) if q.symbols else 1
         cols = (sym_count + 4) // 5
         w = cols * 17.0
     elif q.q_type == "exact_word_fill":
         chars = q.chars_limit or 4
         w = chars * 8.5
     elif q.q_type == "table_fill":
-        sym_count = len(q.symbols) if q.symbols else 5
+        sym_count = len(q.symbols) if q.symbols else 1
         cols = (sym_count + 5) // 6
         w = cols * 14.0
     elif q.q_type in ["lined_box", "free_box"]:
@@ -99,7 +99,7 @@ if uploaded_file is not None:
             client = genai.Client(api_key=api_key)
 
             # ==========================================
-            # 教科別 完全分離プロンプト
+            # 教科別 完全分離プロンプト（国語・英語は凍結）
             # ==========================================
             if selected_subject == "国語":
                 prompt = """
@@ -153,23 +153,32 @@ ZERO HALLUCINATION.
 """
             elif selected_subject == "理科":
                 prompt = """
-You are an expert typesetter for Science university entrance exams (Physics, Chemistry, Biology, Earth Science).
-Analyze the provided Science exam PDF and extract the question structure strictly.
+You are an expert typesetter for Science university entrance exams.
+Read the exam questions carefully and extract the EXACT question structure.
 
-[STRICT RULES FOR SCIENCE]
-1. MULTIPLE CHOICE & SHORT VALUES & SYMBOLS (記号選択・短答・数値のみ):
-   - Examples: "記号で選べ", "記号を答えよ", "数値を求めよ (過程不要)", "空欄に適する語句/記号".
-   - You MUST use `q_type="table_fill"` or `q_type="word_fill"`.
-   - NEVER use `lined_box` or `free_box` for multiple-choice questions.
-   - Set `symbols` to the list of sub-questions (e.g., ["(1)", "(2)", "(3)"] or ["問1", "問2"]).
-2. DERIVATION & CALCULATION PROCESS (計算過程・導出):
-   - ONLY when it explicitly requires the derivation process (e.g., "導出過程を記せ", "計算の過程も書け"):
-   - Use `q_type="math_box"`.
-3. DESCRIPTIVE EXPLANATION (理由・説明・論述):
-   - ONLY for sentences (e.g., "理由を30字以内で説明せよ", "現象を説明せよ"):
-   - If character limit exists: `q_type="char_grid"`, set `chars_limit`.
-   - If no character limit: `q_type="lined_box"`, estimate `line_count` (2 to 4).
-4. DO NOT hallucinate fake questions. Set `instruction`="".
+[CRITICAL RULES FOR SCIENCE - FAILURE IS NOT AN OPTION]
+1. ZERO HALLUCINATION OF SUB-QUESTIONS:
+   - If a question asks for a SINGLE answer (e.g. "一つ選び番号で答えよ", "有効数字2桁で答えよ", "漢字で答えよ"):
+     Output EXACTLY ONE answer box. Do NOT create fake sub-questions like (1), (2), (3).
+     Set `symbols=None` and `q_type="word_fill"` (or `table_fill`).
+
+2. MULTIPLE CHOICE IS ONE ANSWER:
+   - "1〜4のうちから一つ選び" means the student writes ONE number (e.g., "3").
+   - DO NOT create boxes for 1, 2, 3, 4! That is a fatal error. Create ONLY ONE box for the question itself.
+
+3. BLANKS IN ONE QUESTION (空欄補充):
+   - ONLY when multiple blanks are explicitly given (e.g., "空欄 ア・イ に当てはまる語"):
+     Set `symbols=["ア", "イ"]`.
+   - If there is only one blank or one final answer, `symbols` must be null/empty.
+
+4. CALCULATION & DERIVATION (計算過程・式):
+   - ONLY if it explicitly asks to show derivation or chemical formula: use `q_type="lined_box"` or `q_type="math_box"`.
+
+5. SELECTIVE SECTIONS (選択問題):
+   - If the exam has choice sections (e.g., "4と5から1題を選択"):
+     You MUST generate BOTH sections (Section 4 AND Section 5) so the user can choose which one to fill on the printed paper.
+
+6. Set `instruction` to "". Do NOT invent university or year.
 """
             else:
                 prompt = "Extract questions. Mentally solve them. Set instruction to empty string."
@@ -345,7 +354,6 @@ Analyze the provided Science exam PDF and extract the question structure strictl
                     ])
 
                 elif selected_subject == "理科":
-                    # 理科専用レイアウト（2段組みで記号はマス目、計算過程は導出枠）
                     sheet_count += 1
                     if sheet_count > 1:
                         lines.append("#pagebreak()")
@@ -374,17 +382,21 @@ Analyze the provided Science exam PDF and extract the question structure strictl
                         elif q.q_type in ["lined_box", "free_box"]:
                             ln = q.line_count or 3
                             lines.append(f"    #lined-box(lines: {ln})")
-                        elif q.q_type in ["table_fill", "word_fill"]:
-                            symbols = q.symbols or ["(1)", "(2)", "(3)"]
-                            arr = ", ".join([f'"{s}"' for s in symbols])
-                            lines.append(f"    #symbol-table(symbols: ({arr},))")
+                        else:
+                            # 記号・短答・単一解答：余計な初期値補完（1,2,3など）を排除
+                            if q.symbols and len(q.symbols) > 1:
+                                arr = ", ".join([f'"{s}"' for s in q.symbols])
+                                lines.append(f"    #symbol-table(symbols: ({arr},))")
+                            else:
+                                # 単一の解答枠（1つ選択・単一数値）
+                                label = q.symbols[0] if (q.symbols and len(q.symbols) == 1) else "解答"
+                                lines.append(f'    #word-box(symbols: ("{label}",))')
                         lines.append("    #v(12pt)")
                         lines.append("  ]")
                     lines.append("]")
                     lines.append("")
 
                 else:
-                    # 英語・地歴
                     sheet_count += 1
                     if sheet_count > 1:
                         lines.append("#pagebreak()")
