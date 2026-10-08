@@ -32,7 +32,7 @@ with st.sidebar:
     
     selected_model = st.selectbox(
         "使用モデル",
-        options=["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash"],
+        options=["gemini-3.5-flash-lite", "gemini-3.8-flash"],
         index=0
     )
 
@@ -248,3 +248,4 @@ if uploaded_file is not None:
 
         except Exception as e:
             st.error("処理中にエラーが発生しました。PDFの形式をご確認の上、もう一度お試しください。")
+
