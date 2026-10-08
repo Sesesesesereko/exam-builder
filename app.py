@@ -271,4 +271,5 @@ if uploaded_file is not None:
             """, unsafe_allow_html=True)
 
         except Exception as e:
-            st.error("処理中にエラーが発生しました。PDFの形式をご確認の上、もう一度お試しください。")
+            st.error(f"エラー詳細: {str(e)}")
+
