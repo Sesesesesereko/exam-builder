@@ -1,22 +1,67 @@
 ﻿// ==================== 1. 国語 本番仕様コンポーネント ====================
 
-// 漢字書き取り枠（縦にゆったり、かつページはみ出しを防ぐ最適サイズ）
+// 漢字書き取り枠（縦長・5個で強制折り返し）
 #let vertical-kanji-box(symbols: ("ア", "イ", "ウ", "エ", "オ")) = {
   let cell-w = 34pt
   let label-h = 16pt
-  let input-h = 75pt // 高すぎず、熟語が綺麗に書ける約26mm
+  let input-h = 75pt
+  let max-per-col = 5 // ★絶対に5個で折り返し、突き抜けを防ぐ
+  let cols = calc.ceil(symbols.len() / max-per-col)
+  
   block(breakable: false)[
     #stack(
-      dir: ttb,
-      spacing: 3.5mm,
-      ..symbols.map(s => [
-        #stack(
+      dir: ltr,
+      spacing: 5mm,
+      ..range(cols).rev().map(c => {
+        let start = c * max-per-col
+        let end = calc.min(symbols.len(), start + max-per-col)
+        let col-symbols = symbols.slice(start, end)
+        stack(
           dir: ttb,
-          spacing: 0pt,
-          rect(width: cell-w, height: label-h, stroke: 0.5pt + luma(80), fill: luma(245))[#align(center + horizon)[#text(size: 8.5pt, weight: "bold")[#s]]],
-          rect(width: cell-w, height: input-h, stroke: 0.6pt + luma(70), fill: white)[]
+          spacing: 3.5mm,
+          ..col-symbols.map(s => [
+            #stack(
+              dir: ttb,
+              spacing: 0pt,
+              rect(width: cell-w, height: label-h, stroke: 0.5pt + luma(80), fill: luma(245))[#align(center + horizon)[#text(size: 8.5pt, weight: "bold")[#s]]],
+              rect(width: cell-w, height: input-h, stroke: 0.6pt + luma(70), fill: white)[]
+            )
+          ])
         )
-      ])
+      })
+    )
+  ]
+}
+
+// 記号選択枠（6個で強制折り返し）
+#let vertical-symbol-box(symbols: ("(1)", "(2)")) = {
+  let cell-w = 28pt
+  let label-h = 16pt
+  let input-h = 32pt
+  let max-per-col = 6 // ★記号は6個で折り返し
+  let cols = calc.ceil(symbols.len() / max-per-col)
+  
+  block(breakable: false)[
+    #stack(
+      dir: ltr,
+      spacing: 4mm,
+      ..range(cols).rev().map(c => {
+        let start = c * max-per-col
+        let end = calc.min(symbols.len(), start + max-per-col)
+        let col-symbols = symbols.slice(start, end)
+        stack(
+          dir: ttb,
+          spacing: 3.5mm,
+          ..col-symbols.map(s => [
+            #stack(
+              dir: ttb,
+              spacing: 0pt,
+              rect(width: cell-w, height: label-h, stroke: 0.5pt + luma(80), fill: luma(245))[#align(center + horizon)[#text(size: 8.5pt, weight: "bold")[#s]]],
+              rect(width: cell-w, height: input-h, stroke: 0.6pt + luma(70), fill: white)[]
+            )
+          ])
+        )
+      })
     )
   ]
 }
@@ -36,7 +81,7 @@
           ..range(columns-count).map(i => [
             #rect(
               width: col-w,
-              height: 145mm,
+              height: 155mm,
               stroke: (right: if i < columns-count - 1 { (paint: luma(180), dash: "dotted", thickness: 0.5pt) } else { none }),
               fill: none
             )[]
@@ -51,11 +96,11 @@
 #let vertical-grid(chars: 60) = {
   let lines-count = calc.ceil(chars / 20)
   let cell-w = 6.5mm
-  let cell-h = 7.2mm
+  let cell-h = 7.4mm
   block(breakable: false)[
     #stack(
       dir: ltr,
-      spacing: 2.2mm,
+      spacing: 2.5mm,
       ..range(lines-count).rev().map(line-idx => {
         let start-num = line-idx * 20
         let current-line-chars = calc.min(20, chars - start-num)
@@ -70,27 +115,6 @@
           )[])
         )
       })
-    )
-  ]
-}
-
-// 記号選択枠
-#let vertical-symbol-box(symbols: ("(1)", "(2)")) = {
-  let cell-w = 28pt
-  let label-h = 16pt
-  let input-h = 32pt
-  block(breakable: false)[
-    #stack(
-      dir: ltr,
-      spacing: 4mm,
-      ..symbols.rev().map(s => [
-        #stack(
-          dir: ttb,
-          spacing: 0pt,
-          rect(width: cell-w, height: label-h, stroke: 0.5pt + luma(80), fill: luma(245))[#align(center + horizon)[#text(size: 8.5pt, weight: "bold")[#s]]],
-          rect(width: cell-w, height: input-h, stroke: 0.6pt + luma(70), fill: white)[]
-        )
-      ])
     )
   ]
 }

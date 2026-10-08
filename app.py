@@ -43,19 +43,26 @@ selected_subject = st.radio(
 uploaded_file = st.file_uploader("問題PDFをアップロード", type=["pdf"])
 
 def get_q_width_mm(q):
-    """設問の種類から必要な物理的な横幅(mm)を算出し、はみ出しを防止する"""
+    """大枠(rect)のパディングを含めた物理幅(mm)を算出し、はみ出しを防ぐ"""
+    base_gap = 14.0 # 枠組みと余白分
     if q.q_type == "char_grid":
         chars = q.chars_limit or 60
         lines = (chars + 19) // 20
-        return lines * 8.7 + 15.0
+        w = lines * 8.7
     elif q.q_type == "word_fill":
-        return 22.0
+        sym_count = len(q.symbols) if q.symbols else 5
+        cols = (sym_count + 4) // 5  # 5個で折り返し
+        w = cols * 17.0
     elif q.q_type == "table_fill":
-        return 18.0
+        sym_count = len(q.symbols) if q.symbols else 5
+        cols = (sym_count + 5) // 6  # 6個で折り返し
+        w = cols * 14.0
     elif q.q_type in ["lined_box", "free_box"]:
         lines = q.line_count or 2
-        return lines * 11.5 + 15.0
-    return 30.0
+        w = lines * 11.5
+    else:
+        w = 20.0
+    return max(w, 15.0) + base_gap
 
 if uploaded_file is not None:
     st.success(f"📎 読み込み完了: {uploaded_file.name}")
@@ -81,16 +88,16 @@ if uploaded_file is not None:
 
             if selected_subject == "国語":
                 prompt = """
-You are a highly precise typesetter for Japanese university entrance exams (e.g., Tokyo Univ).
-Your ONLY job is to extract the EXACT question structure from the PDF.
+You are a highly precise typesetter for Japanese university entrance exams.
+Extract the EXACT question structure from the PDF.
 
-[CRITICAL RULES - FAILURE IS NOT AN OPTION]
-1. ZERO HALLUCINATION: NEVER create fake choices, fake symbols (like ア, イ, ウ), or fake questions. Only extract what is explicitly written in the PDF.
-2. If a question is a descriptive text (e.g. "説明せよ", "訳せよ"), you MUST NOT output `table_fill`. You must use `free_box` (for standard description) or `char_grid` (if character limit like "50字以内" is given).
+[CRITICAL RULES]
+1. ZERO HALLUCINATION: NEVER create fake choices, symbols, or questions.
+2. If a question is a descriptive text (e.g. "説明せよ"), DO NOT output `table_fill`. Use `free_box` (no limit) or `char_grid` (if "○字以内").
 3. Mentally solve descriptive questions to estimate the `line_count` (usually 2, 3, or 4 lines).
-4. For Kanji/Vocab extraction (where symbols like A, B, C are explicitly given): use `word_fill` and set `symbols`.
-5. DO NOT GUESS `university` or `year`. If not clearly printed on the first page, leave them as empty strings ("").
-6. Set `instruction` to empty string ("").
+4. For Kanji/Vocab extraction: use `word_fill` and set `symbols`.
+5. DO NOT GUESS `university` or `year`. If not clearly printed, leave them as empty strings ("").
+6. Set `instruction` to "".
 """
             elif selected_subject == "数学":
                 prompt = """
@@ -124,11 +131,13 @@ Never invent questions. Do not guess university or year if missing.
             progress_text.text("3/3: B4本番用紙を組版中...")
             progress_bar.progress(80)
 
-            has_univ = bool(exam.university and "unknown" not in exam.university.lower())
-            has_year = bool(exam.year and "unknown" not in str(exam.year).lower())
-            
-            univ_display = f"{exam.university}" if has_univ else ""
-            year_display = f"{exam.year}" if has_year else ""
+            raw_u = (exam.university or "").replace("大学", "").replace("大学名", "").strip()
+            has_univ = bool(raw_u and raw_u.lower() not in ["unknown", "none", "未定"])
+            univ_display = f"{raw_u}大学" if has_univ else ""
+
+            raw_y = (str(exam.year) if exam.year else "").replace("年度", "").strip()
+            has_year = bool(raw_y and raw_y.lower() not in ["unknown", "none", "未定"])
+            year_display = f"{raw_y}年度" if has_year else ""
 
             lines = [
                 '#import "components/components.typ": *',
@@ -148,11 +157,10 @@ Never invent questions. Do not guess university or year if missing.
                 questions = sec.questions
 
                 if selected_subject == "国語":
-                    # はみ出し防止の動的チャンク（ページ分割）処理
                     chunks = []
                     current_chunk = []
                     current_width = 0.0
-                    MAX_WIDTH = 250.0  # B4用紙の解答枠に使える最大幅(mm)
+                    MAX_WIDTH = 230.0
 
                     for q in questions:
                         w = get_q_width_mm(q)
@@ -167,7 +175,6 @@ Never invent questions. Do not guess university or year if missing.
                     if current_chunk:
                         chunks.append(current_chunk)
 
-                    # チャンクごとにページ出力
                     for c_idx, chunk in enumerate(chunks):
                         sheet_count += 1
                         if sheet_count > 1:
@@ -185,32 +192,38 @@ Never invent questions. Do not guess university or year if missing.
                         lines.append("        spacing: 9mm,")
 
                         for q in reversed(chunk):
-                            lines.append("        block(breakable: false)[")
-                            lines.append(f'          #align(center)[#text(weight: "bold", size: 10pt)[【{q.q_number}】]]')
-                            lines.append("          #v(6pt)")
+                            # ★ 設問の周りを線で囲みブロック化（はみ出し防止＆デザイン向上）
+                            lines.append("        #rect(")
+                            lines.append("          stroke: 0.8pt + luma(80),")
+                            lines.append("          inset: 12pt,")
+                            lines.append("          radius: 4pt,")
+                            lines.append("          fill: white,")
+                            lines.append("          block(breakable: false)[")
+                            lines.append(f'            #align(center)[#text(weight: "bold", size: 10pt)[【{q.q_number}】]]')
+                            lines.append("            #v(8pt)")
 
                             if q.q_type == "char_grid":
                                 c = q.chars_limit or 60
-                                lines.append(f"          #vertical-grid(chars: {c})")
+                                lines.append(f"            #vertical-grid(chars: {c})")
                             elif q.q_type == "word_fill":
                                 symbols = q.symbols or ["ア", "イ", "ウ", "エ", "オ"]
                                 arr = ", ".join([f'"{s}"' for s in symbols])
-                                lines.append(f"          #vertical-kanji-box(symbols: ({arr},))")
+                                lines.append(f"            #vertical-kanji-box(symbols: ({arr},))")
                             elif q.q_type == "table_fill":
                                 symbols = q.symbols or ["(1)", "(2)"]
                                 arr = ", ".join([f'"{s}"' for s in symbols])
-                                lines.append(f"          #vertical-symbol-box(symbols: ({arr},))")
+                                lines.append(f"            #vertical-symbol-box(symbols: ({arr},))")
                             else:
                                 ln = q.line_count or 2
-                                lines.append(f"          #vertical-free-box(columns-count: {ln})")
+                                lines.append(f"            #vertical-free-box(columns-count: {ln})")
 
-                            lines.append("        ],")
+                            lines.append("          ]")
+                            lines.append("        ),")
 
                         lines.append("      )")
                         lines.append("    ]")
                         lines.append("  ],")
 
-                        # ズレない・はみ出さない完璧なヘッダー
                         lines.extend([
                             "  [",
                             "    #rect(width: 100%, height: 100%, stroke: 0.8pt + luma(60), fill: white, inset: 0pt)[",
