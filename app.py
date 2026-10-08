@@ -6,100 +6,92 @@ from google import genai
 from google.genai import types
 from schemas.question_schema import ExamPaper
 
-# iPad / スマホ最適化
+# GoogleフォームのURL（必要に応じて差し替え可能）
+GOOGLE_FORM_URL = "https://forms.gle/"
+
 st.set_page_config(
-    page_title="解答用紙ジェネレーター",
+    page_title="入試解答用紙ジェネレーター",
     page_icon="📝",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
+# モダンなデザインスタイル
 st.markdown("""
 <style>
-    .block-container { padding-top: 1.5rem; padding-bottom: 2rem; max-width: 900px; }
-    div[data-testid="stFileUploader"] { margin-bottom: 1.5rem; }
-    .stButton>button { width: 100%; border-radius: 8px; height: 3.2rem; font-weight: bold; font-size: 1.1rem; }
+    .block-container { padding-top: 2rem; padding-bottom: 2rem; max-width: 850px; }
+    .header-box { text-align: center; margin-bottom: 2rem; }
+    .header-title { font-size: 2rem; font-weight: 800; color: #1e293b; margin-bottom: 0.5rem; }
+    .header-sub { font-size: 1rem; color: #64748b; }
+    div[data-testid="stFileUploader"] { margin-bottom: 1.5rem; border: 2px dashed #cbd5e1; border-radius: 12px; padding: 10px; }
+    .stButton>button { width: 100%; border-radius: 10px; height: 3.4rem; font-weight: bold; font-size: 1.15rem; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; border: none; }
+    .feedback-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.2rem; margin-top: 2rem; text-align: center; }
 </style>
 """, unsafe_allow_html=True)
 
-st.title("📝 解答用紙ジェネレーター")
-st.caption("過去問PDFから本番仕様の解答用紙（B4）を自動生成します。")
+st.markdown("""
+<div class="header-box">
+    <div class="header-title">📝 入試解答用紙ジェネレーター</div>
+    <div class="header-sub">問題PDFをアップロードするだけで、本番仕様のB4解答用紙を自動組版します。</div>
+</div>
+""", unsafe_allow_html=True)
 
-with st.sidebar:
-    st.header("⚙️ 設定")
-    default_key = os.environ.get("GEMINI_API_KEY", "")
-    input_api_key = st.text_input("Gemini API Key", value=default_key, type="password")
-    
-    selected_model = st.selectbox(
-        "使用モデル",
-        options=["gemini-3.5-flash-lite", "gemini-3.8-flash"],
-        index=0
-    )
-
-uploaded_file = st.file_uploader("過去問PDFをアップロード", type=["pdf"])
+uploaded_file = st.file_uploader("過去問PDFを選択してください（英語・国語・数学・社会・理科）", type=["pdf"])
 
 if uploaded_file is not None:
-    st.success(f"📎 選択中: {uploaded_file.name}")
+    st.success(f"📎 読み込み完了: {uploaded_file.name}")
     
-    if st.button("🚀 解答用紙を生成する", type="primary"):
-        api_key = input_api_key.strip()
+    if st.button("🚀 解答用紙を生成する"):
+        api_key = os.environ.get("GEMINI_API_KEY")
         if not api_key:
-            st.error("Gemini API キーが未設定です。サイドバーから入力してください。")
+            st.error("システムエラー: APIキーが設定されていません。管理者に連絡してください。")
             st.stop()
 
         progress_text = st.empty()
         progress_bar = st.progress(0)
 
         try:
-            progress_text.text("1/3: PDFデータを読み込み中...")
+            progress_text.text("1/3: PDFデータを解析準備中...")
             progress_bar.progress(20)
             pdf_bytes = uploaded_file.read()
 
-            progress_text.text(f"2/3: AI ({selected_model}) が設問構成を分析中...")
+            progress_text.text("2/3: 設問構造の解析と解答スペースの自動算出中...")
             progress_bar.progress(50)
 
             client = genai.Client(api_key=api_key)
             prompt = """
-あなたは大学入試の解答用紙を設計する組版の専門家です。
-問題PDFから科目（英語/国語）を特定し、解答欄のレイアウトに必要な枠構造「のみ」を漏れなく抽出してください。
+あなたは大学入試の解答用紙を設計する最高峰の組版専門家です。
+提供された問題PDFを詳しく精査し、解答用紙のレイアウトに必要な枠構造「のみ」を漏れなく正確に抽出してください。
 
-【厳格ルール】
-1. 科目（subject）: "英語" または "国語"
-2. 小問・枝問の完全分離:
-   - 1つの大問・問の中に複数の解答欄がある場合（例: 問い二に「イ」「ロ」がある、問一に「A〜E」がある等）、必ず独立したQuestion要素として1問ずつ分割してください。
-   - q_number の表記: 「問一」「問二 (イ)」「問二 (ロ)」「問三」のように統一。
-3. 解答欄タイプの厳密判定:
-   - 「○字以内」「○字程度」とある論述問題: q_type="char_grid", chars_limit に指定文字数を数値で設定（例: 30, 50, 60, 100）。
-   - 漢字書き取り、語句の抜き出し・短答: q_type="word_fill", symbols に ["A", "B", "C", "D", "E"] や ["ア", "イ"] などの記号リストを設定。
-   - 字数指定のない説明・現代語訳・心情説明: q_type="lined_box", line_count に行数（2〜3）を設定。
-   - 記号選択: q_type="table_fill", symbols に ["(1)", "(2)"] などの記号リストを設定。
-4. instruction（指示文）は解答用紙には不要なため、すべて空文字（""）にしてください。
+【思考と枠サイズの算出ルール】
+1. 科目（subject）を "国語", "英語", "数学", "社会", "理科" のいずれかで特定してください。
+2. 字数制限が明記されていない記述・説明・和訳問題について:
+   - あなた自身が頭の中で一度その設問を実際に解いて模範解答を作成してください。
+   - その模範解答の文字数・行数を計測し、受験生が余裕をもって書けるように「1.3〜1.5倍のゆとり」を持たせた行数（line_count）を決定してください。
+3. 設問の完全分離:
+   - 1つの問に枝問（イ・ロ、(1)(2)など）がある場合は独立した小問として分割してください。
+4. 解答欄タイプの選定:
+   - char_grid: 「○字以内」の指定がある論述・要約（chars_limitにその字数を設定）。
+   - vertical_grid: 国語の字数指定（自動で判別）。
+   - word_fill: 漢字書き取り、用語穴埋め、英単語短答。
+   - lined_box: 英文和訳、自由英作文、説明記述。
+   - math_box: 数学・物理・化学などの計算記述・導出過程枠。
+   - table_fill: 選択肢記号問題。
+5. 解答用紙には問題文・指示文は不要です（instructionは空文字にしてください）。
 """
 
-            max_retries = 3
-            response = None
-            for attempt in range(1, max_retries + 1):
-                try:
-                    response = client.models.generate_content(
-                        model=selected_model,
-                        contents=[
-                            types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"),
-                            prompt
-                        ],
-                        config=types.GenerateContentConfig(
-                            response_mime_type="application/json",
-                            response_schema=ExamPaper,
-                            temperature=0.1,
-                        ),
-                    )
-                    break
-                except Exception as e:
-                    err_msg = str(e)
-                    if "503" in err_msg or "UNAVAILABLE" in err_msg:
-                        if attempt < max_retries:
-                            time.sleep(attempt * 4)
-                            continue
-                    raise e
+            response = client.models.generate_content(
+                model="gemini-3.5-flash-lite",
+                contents=[
+                    types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"),
+                    prompt
+                ],
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=ExamPaper,
+                    temperature=0.1,
+                ),
+            )
 
             exam = ExamPaper.model_validate_json(response.text)
 
@@ -120,12 +112,16 @@ if uploaded_file is not None:
                 "",
             ]
 
-            for i, sec in enumerate(exam.sections):
-                if i > 0:
+            total_sheet_count = 0
+
+            for sec in exam.sections:
+                questions = sec.questions
+                total_sheet_count += 1
+                if total_sheet_count > 1:
                     lines.append("#pagebreak()")
 
                 lines.extend([
-                    "// ヘッダー情報",
+                    "// ヘッダー部",
                     "#grid(",
                     "  columns: (1fr, auto),",
                     "  align: (left + horizon, right + horizon),",
@@ -145,13 +141,13 @@ if uploaded_file is not None:
                 ])
 
                 if is_kokugo:
-                    # 1大問を原則1枚に集約。右から左へ並べる
+                    # 国語: 1大問を原則1枚に集約し、右から左へ並べる
                     lines.append("#align(right)[")
                     lines.append("  #stack(")
-                    lines.append("    dir: ltr,")
-                    lines.append("    spacing: 8mm,")
+                    lines.append("    dir: ltr,",
+                    "    spacing: 8mm,")
 
-                    for q in reversed(sec.questions):
+                    for q in reversed(questions):
                         lines.append("    block(breakable: false)[")
                         lines.append(f'      #align(center)[#text(weight: "bold", size: 9.5pt)[【{q.q_number}】]]')
                         lines.append("      #v(5pt)")
@@ -159,16 +155,13 @@ if uploaded_file is not None:
                         if q.q_type == "char_grid":
                             c = q.chars_limit or 60
                             lines.append(f"      #vertical-grid(chars: {c})")
-
                         elif q.q_type in ["lined_box", "free_box"]:
                             ln = q.line_count or 3
                             lines.append(f"      #vertical-free-box(columns-count: {ln})")
-
                         elif q.q_type == "word_fill":
                             symbols = q.symbols or ["A", "B", "C", "D", "E"]
                             arr = ", ".join([f'"{s}"' for s in symbols])
                             lines.append(f"      #vertical-kanji-box(symbols: ({arr},))")
-
                         elif q.q_type == "table_fill":
                             symbols = q.symbols or ["(1)", "(2)", "(3)"]
                             arr = ", ".join([f'"{s}"' for s in symbols])
@@ -180,9 +173,24 @@ if uploaded_file is not None:
                     lines.append("]")
                     lines.append("")
 
-                else:
+                elif "数学" in exam.subject:
+                    # 数学: ゆったりとした計算・論述余白枠
                     lines.append("#columns(2, gutter: 16mm)[")
-                    for q in sec.questions:
+                    for q in questions:
+                        lines.append("  #block(breakable: false)[")
+                        lines.append(f'    #text(weight: "bold", size: 10pt)[【{q.q_number}】]')
+                        lines.append("    #v(3pt)")
+                        # 推定行数や大問規模に合わせて高さを決定（デフォルト180pt）
+                        lines.append("    #math-calc-box(height-pt: 190pt, divided: false)")
+                        lines.append("    #v(10pt)")
+                        lines.append("  ]")
+                    lines.append("]")
+                    lines.append("")
+
+                else:
+                    # 英語・社会・理科: 2段組
+                    lines.append("#columns(2, gutter: 16mm)[")
+                    for q in questions:
                         lines.append("  #block(breakable: false)[")
                         lines.append(f'    #text(weight: "bold", size: 10pt)[【{q.q_number}】]')
                         lines.append("    #v(3pt)")
@@ -191,7 +199,7 @@ if uploaded_file is not None:
                             c = q.chars_limit or 100
                             lines.append(f"    #char-grid(chars: {c})")
                         elif q.q_type in ["lined_box", "free_box"]:
-                            ln = q.line_count or 10
+                            ln = q.line_count or 6
                             lines.append(f"    #lined-box(lines: {ln})")
                         elif q.q_type == "reorder":
                             targets = q.targets or ["3番目", "7番目"]
@@ -206,7 +214,7 @@ if uploaded_file is not None:
                             arr = ", ".join([f'"{s}"' for s in symbols])
                             lines.append(f"    #word-box(symbols: ({arr},))")
 
-                        lines.append("    #v(14pt)")
+                        lines.append("    #v(12pt)")
                         lines.append("  ]")
                     lines.append("]")
                     lines.append("")
@@ -227,7 +235,7 @@ if uploaded_file is not None:
             )
 
             if res.returncode != 0:
-                st.error("解答用紙のコンパイル中にエラーが発生しました。設問形式を確認してください。")
+                st.error("組版処理中にエラーが発生しました。設問形式をご確認ください。")
                 st.stop()
 
             with open(pdf_path, "rb") as f:
@@ -246,6 +254,21 @@ if uploaded_file is not None:
                 type="primary"
             )
 
+            # フィードバック案内
+            st.markdown(f"""
+            <div class="feedback-box">
+                <div style="font-weight: bold; margin-bottom: 0.5rem; color: #334155;">💬 ご意見・改善要望・不具合報告</div>
+                <div style="font-size: 0.9rem; color: #64748b; margin-bottom: 0.8rem;">
+                    「枠のサイズ感をこうしてほしい」「この大学の過去問に対応してほしい」など、<br>
+                    些細なことでもお気軽に匿名でお寄せください！
+                </div>
+                <a href="{GOOGLE_FORM_URL}" target="_blank" style="text-decoration: none;">
+                    <button style="padding: 0.5rem 1.2rem; border-radius: 6px; border: 1px solid #cbd5e1; background: white; font-weight: bold; color: #1e293b; cursor: pointer;">
+                        📝 フィードバックを送る（Googleフォーム）
+                    </button>
+                </a>
+            </div>
+            """, unsafe_allow_html=True)
+
         except Exception as e:
             st.error("処理中にエラーが発生しました。PDFの形式をご確認の上、もう一度お試しください。")
-
