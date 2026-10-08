@@ -1,11 +1,9 @@
 ﻿// ==================== 1. 国語 本番仕様コンポーネント ====================
-
-// 漢字書き取り枠（縦長・5個で強制折り返し）
 #let vertical-kanji-box(symbols: ("ア", "イ", "ウ", "エ", "オ")) = {
   let cell-w = 34pt
   let label-h = 16pt
   let input-h = 75pt
-  let max-per-col = 5 // ★絶対に5個で折り返し、突き抜けを防ぐ
+  let max-per-col = 5
   let cols = calc.ceil(symbols.len() / max-per-col)
   
   block(breakable: false)[
@@ -33,12 +31,35 @@
   ]
 }
 
-// 記号選択枠（6個で強制折り返し）
+#let exact-char-box(symbols: ("A", "B"), chars: 4) = {
+  let cell-s = 18.5pt
+  let label-h = 16pt
+  block(breakable: false)[
+    #stack(
+      dir: ltr,
+      spacing: 4mm,
+      ..symbols.rev().map(s => [
+        #stack(
+          dir: ttb,
+          spacing: 0pt,
+          rect(width: cell-s, height: label-h, stroke: 0.5pt + luma(80), fill: luma(245))[#align(center + horizon)[#text(size: 8.5pt, weight: "bold")[#s]]],
+          ..range(chars).map(_ => rect(
+            width: cell-s,
+            height: cell-s,
+            stroke: 0.5pt + luma(70),
+            fill: white
+          )[])
+        )
+      ])
+    )
+  ]
+}
+
 #let vertical-symbol-box(symbols: ("(1)", "(2)")) = {
   let cell-w = 28pt
   let label-h = 16pt
   let input-h = 32pt
-  let max-per-col = 6 // ★記号は6個で折り返し
+  let max-per-col = 6
   let cols = calc.ceil(symbols.len() / max-per-col)
   
   block(breakable: false)[
@@ -66,7 +87,6 @@
   ]
 }
 
-// 縦書き自由記述枠
 #let vertical-free-box(columns-count: 2) = {
   let col-w = 11.5mm
   block(breakable: false)[
@@ -92,7 +112,6 @@
   ]
 }
 
-// 字数指定マス目
 #let vertical-grid(chars: 60) = {
   let lines-count = calc.ceil(chars / 20)
   let cell-w = 6.5mm
@@ -119,7 +138,7 @@
   ]
 }
 
-// ==================== 2. 数学コンポーネント ====================
+// ==================== 2. 数学・理科計算コンポーネント ====================
 #let math-calc-box(height-pt: 480pt, divided: true) = {
   rect(
     width: 100%,
@@ -135,7 +154,20 @@
   )
 }
 
-// ==================== 3. 英語・共通コンポーネント ====================
+#let science-calc-box(height-pt: 120pt) = {
+  rect(
+    width: 100%,
+    height: height-pt,
+    stroke: 0.6pt + luma(70),
+    fill: white,
+    inset: 4pt,
+    [
+      #align(top + left)[#text(size: 8pt, fill: luma(120))[【計算過程・理由】]]
+    ]
+  )
+}
+
+// ==================== 3. 英語・理科・共通コンポーネント ====================
 #let char-grid(chars: 100, cols-per-line: 20) = {
   let rows = calc.ceil(chars / cols-per-line)
   let cell-size = 6.5mm
@@ -193,27 +225,33 @@
   )
 }
 
+// ★理科向け：記号選択・短答が間延びしないコンパクトなマス目テーブル
 #let symbol-table(symbols: ("(1)", "(2)", "(3)", "(4)")) = {
   let count = symbols.len()
-  let max-cols = calc.min(count, 6)
+  let max-cols = calc.min(count, 5)
+  let cell-w = 38pt
+  let cell-h = 24pt
   table(
-    columns: range(max-cols).map(_ => 1fr),
-    rows: (20pt, 30pt),
+    columns: range(max-cols).map(_ => cell-w),
+    rows: (16pt, cell-h),
     align: center + horizon,
     stroke: 0.5pt + luma(80),
-    ..symbols.slice(0, max-cols).map(s => table.cell(fill: luma(245))[#text(weight: "bold", size: 9pt)[#s]]),
+    ..symbols.slice(0, max-cols).map(s => table.cell(fill: luma(245))[#text(weight: "bold", size: 8.5pt)[#s]]),
     ..range(max-cols).map(_ => table.cell(fill: white)[])
   )
 }
 
 #let word-box(symbols: ("(1)", "(2)")) = {
   let count = symbols.len()
+  let max-cols = calc.min(count, 5)
+  let cell-w = 42pt
+  let cell-h = 24pt
   table(
-    columns: range(count).map(_ => 1fr),
-    rows: (20pt, 32pt),
+    columns: range(max-cols).map(_ => cell-w),
+    rows: (16pt, cell-h),
     align: center + horizon,
     stroke: 0.5pt + luma(80),
-    ..symbols.map(s => table.cell(fill: luma(245))[#text(weight: "bold", size: 9pt)[#s]]),
-    ..range(count).map(_ => table.cell(fill: white)[])
+    ..symbols.slice(0, max-cols).map(s => table.cell(fill: luma(245))[#text(weight: "bold", size: 8.5pt)[#s]]),
+    ..range(max-cols).map(_ => table.cell(fill: white)[])
   )
 }

@@ -45,11 +45,9 @@ selected_subject = st.radio(
 
 uploaded_file = st.file_uploader("問題PDFをアップロード", type=["pdf"])
 
-# 問題用紙を一緒に印刷・結合するかどうかの選択
 include_questions = st.checkbox("📄 問題用紙もまとめて1つのPDFにする（問題 ＋ 解答用紙）", value=False)
 
 def get_q_width_mm(q):
-    """大枠(rect)のパディングを含めた物理幅(mm)を算出し、はみ出しを防ぐ"""
     base_gap = 14.0
     if q.q_type == "char_grid":
         chars = q.chars_limit or 60
@@ -100,6 +98,9 @@ if uploaded_file is not None:
 
             client = genai.Client(api_key=api_key)
 
+            # ==========================================
+            # 教科別 完全分離プロンプト
+            # ==========================================
             if selected_subject == "国語":
                 prompt = """
 You are a highly precise typesetter for Japanese entrance exams. Read ONLY the "設問" (Questions) section.
@@ -135,7 +136,7 @@ ZERO HALLUCINATION: Do not invent questions.
 You are a Math exam typesetter.
 Extract ONLY the main question numbers (e.g., 第1問, 第2問).
 DO NOT extract sub-questions like (1), (2).
-For each main section, output exactly ONE question with `q_number="解答欄"`, `q_type="math_box"`.
+For each main section, output exactly ONE question with `q_number="解答欄"` and `q_type="math_box"`.
 DO NOT guess `university` or `year`. Set `instruction`="".
 """
             elif selected_subject == "地歴・社会":
@@ -152,13 +153,23 @@ ZERO HALLUCINATION.
 """
             elif selected_subject == "理科":
                 prompt = """
-You are a Science (Physics/Chemistry/Biology) exam typesetter. Mentally solve questions to estimate space.
-ZERO HALLUCINATION.
+You are an expert typesetter for Science university entrance exams (Physics, Chemistry, Biology, Earth Science).
+Analyze the provided Science exam PDF and extract the question structure strictly.
 
-1. MULTIPLE CHOICE / SHORT ANSWER: Use `q_type="table_fill"` or `q_type="word_fill"`.
-2. CALCULATION / PROCESS (計算過程・描画): Use `q_type="math_box"`.
-3. DESCRIPTION (論述): Use `q_type="lined_box"` or `q_type="char_grid"`.
-4. DO NOT guess `university` or `year`. Set `instruction`="".
+[STRICT RULES FOR SCIENCE]
+1. MULTIPLE CHOICE & SHORT VALUES & SYMBOLS (記号選択・短答・数値のみ):
+   - Examples: "記号で選べ", "記号を答えよ", "数値を求めよ (過程不要)", "空欄に適する語句/記号".
+   - You MUST use `q_type="table_fill"` or `q_type="word_fill"`.
+   - NEVER use `lined_box` or `free_box` for multiple-choice questions.
+   - Set `symbols` to the list of sub-questions (e.g., ["(1)", "(2)", "(3)"] or ["問1", "問2"]).
+2. DERIVATION & CALCULATION PROCESS (計算過程・導出):
+   - ONLY when it explicitly requires the derivation process (e.g., "導出過程を記せ", "計算の過程も書け"):
+   - Use `q_type="math_box"`.
+3. DESCRIPTIVE EXPLANATION (理由・説明・論述):
+   - ONLY for sentences (e.g., "理由を30字以内で説明せよ", "現象を説明せよ"):
+   - If character limit exists: `q_type="char_grid"`, set `chars_limit`.
+   - If no character limit: `q_type="lined_box"`, estimate `line_count` (2 to 4).
+4. DO NOT hallucinate fake questions. Set `instruction`="".
 """
             else:
                 prompt = "Extract questions. Mentally solve them. Set instruction to empty string."
@@ -333,7 +344,47 @@ ZERO HALLUCINATION.
                         ""
                     ])
 
+                elif selected_subject == "理科":
+                    # 理科専用レイアウト（2段組みで記号はマス目、計算過程は導出枠）
+                    sheet_count += 1
+                    if sheet_count > 1:
+                        lines.append("#pagebreak()")
+                    lines.extend([
+                        "#grid(",
+                        "  columns: (1fr, auto),",
+                        "  gutter: 12pt,",
+                        "  align: (left + top, right + top),",
+                        f'  text(size: 13pt, weight: "bold")[{year_display} {univ_display} 理科 解答用紙 【{sec.big_number}】],',
+                        '  table(columns: (45pt, 70pt, 35pt, 90pt, 45pt), rows: (16pt, 24pt), align: center + horizon, stroke: 0.5pt, table.cell(fill: luma(245))[受験番号], table.cell(rowspan: 2, fill: white)[], table.cell(fill: luma(245))[氏名], table.cell(rowspan: 2, fill: white)[], table.cell(fill: luma(235))[※得点], table.cell(fill: white)[])',
+                        ")",
+                        "#v(5pt)",
+                        "#line(length: 100%, stroke: 1.2pt)",
+                        "#v(10pt)",
+                        "#columns(2, gutter: 16mm)[",
+                    ])
+                    for q in questions:
+                        lines.append("  #block(breakable: false)[")
+                        lines.append(f'    #text(weight: "bold", size: 10pt)[【{q.q_number}】]')
+                        lines.append("    #v(3pt)")
+                        if q.q_type == "char_grid":
+                            c = q.chars_limit or 50
+                            lines.append(f"    #char-grid(chars: {c})")
+                        elif q.q_type == "math_box":
+                            lines.append("    #science-calc-box(height-pt: 120pt)")
+                        elif q.q_type in ["lined_box", "free_box"]:
+                            ln = q.line_count or 3
+                            lines.append(f"    #lined-box(lines: {ln})")
+                        elif q.q_type in ["table_fill", "word_fill"]:
+                            symbols = q.symbols or ["(1)", "(2)", "(3)"]
+                            arr = ", ".join([f'"{s}"' for s in symbols])
+                            lines.append(f"    #symbol-table(symbols: ({arr},))")
+                        lines.append("    #v(12pt)")
+                        lines.append("  ]")
+                    lines.append("]")
+                    lines.append("")
+
                 else:
+                    # 英語・地歴
                     sheet_count += 1
                     if sheet_count > 1:
                         lines.append("#pagebreak()")
@@ -404,16 +455,12 @@ ZERO HALLUCINATION.
             with open(pdf_path, "rb") as f:
                 answer_sheet_bytes = f.read()
 
-            # 問題PDFを結合するかどうかの判定
             if include_questions:
                 merger = PdfWriter()
-                
-                # 1. 問題PDFを全ページ追加
                 q_pdf_reader = PdfReader(io.BytesIO(pdf_bytes))
                 for page in q_pdf_reader.pages:
                     merger.add_page(page)
                 
-                # 2. 生成した解答用紙PDFを全ページ追加
                 a_pdf_reader = PdfReader(io.BytesIO(answer_sheet_bytes))
                 for page in a_pdf_reader.pages:
                     merger.add_page(page)
