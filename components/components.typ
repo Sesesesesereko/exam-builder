@@ -225,33 +225,57 @@
   )
 }
 
-// ★理科向け：記号選択・短答が間延びしないコンパクトなマス目テーブル
+// ★理科・共通：4個で横幅全体（100%）を過不足なく埋めるテーブル設定
 #let symbol-table(symbols: ("(1)", "(2)", "(3)", "(4)")) = {
   let count = symbols.len()
-  let max-cols = calc.min(count, 5)
-  let cell-w = 38pt
-  let cell-h = 24pt
-  table(
-    columns: range(max-cols).map(_ => cell-w),
-    rows: (16pt, cell-h),
-    align: center + horizon,
-    stroke: 0.5pt + luma(80),
-    ..symbols.slice(0, max-cols).map(s => table.cell(fill: luma(245))[#text(weight: "bold", size: 8.5pt)[#s]]),
-    ..range(max-cols).map(_ => table.cell(fill: white)[])
+  let cols-per-row = 4
+  let rows-count = calc.ceil(count / cols-per-row)
+  
+  stack(
+    spacing: 4pt,
+    ..range(rows-count).map(r => {
+      let start = r * cols-per-row
+      let end = calc.min(count, start + cols-per-row)
+      let sub-symbols = symbols.slice(start, end)
+      let fill-count = cols-per-row - sub-symbols.len()
+      
+      table(
+        columns: range(cols-per-row).map(_ => 1fr),
+        rows: (18pt, 28pt),
+        align: center + horizon,
+        stroke: 0.5pt + luma(80),
+        ..sub-symbols.map(s => table.cell(fill: luma(245))[#text(weight: "bold", size: 9pt)[#s]]),
+        ..range(fill-count).map(_ => table.cell(stroke: none)[]),
+        ..range(sub-symbols.len()).map(_ => table.cell(fill: white)[]),
+        ..range(fill-count).map(_ => table.cell(stroke: none)[])
+      )
+    })
   )
 }
 
 #let word-box(symbols: ("(1)", "(2)")) = {
   let count = symbols.len()
-  let max-cols = calc.min(count, 5)
-  let cell-w = 42pt
-  let cell-h = 24pt
-  table(
-    columns: range(max-cols).map(_ => cell-w),
-    rows: (16pt, cell-h),
-    align: center + horizon,
-    stroke: 0.5pt + luma(80),
-    ..symbols.slice(0, max-cols).map(s => table.cell(fill: luma(245))[#text(weight: "bold", size: 8.5pt)[#s]]),
-    ..range(max-cols).map(_ => table.cell(fill: white)[])
+  let cols-per-row = 4
+  let rows-count = calc.ceil(count / cols-per-row)
+  
+  stack(
+    spacing: 4pt,
+    ..range(rows-count).map(r => {
+      let start = r * cols-per-row
+      let end = calc.min(count, start + cols-per-row)
+      let sub-symbols = symbols.slice(start, end)
+      let fill-count = cols-per-row - sub-symbols.len()
+      
+      table(
+        columns: range(cols-per-row).map(_ => 1fr),
+        rows: (18pt, 30pt),
+        align: center + horizon,
+        stroke: 0.5pt + luma(80),
+        ..sub-symbols.map(s => table.cell(fill: luma(245))[#text(weight: "bold", size: 9pt)[#s]]),
+        ..range(fill-count).map(_ => table.cell(stroke: none)[]),
+        ..range(sub-symbols.len()).map(_ => table.cell(fill: white)[]),
+        ..range(fill-count).map(_ => table.cell(stroke: none)[])
+      )
+    })
   )
 }
