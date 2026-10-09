@@ -99,7 +99,7 @@ if uploaded_file is not None:
             client = genai.Client(api_key=api_key)
 
             # ==========================================
-            # 教科別 完全分離プロンプト（国語・英語は凍結）
+            # 教科別 完全分離プロンプト（国語・英語は凍結維持）
             # ==========================================
             if selected_subject == "国語":
                 prompt = """
@@ -136,7 +136,7 @@ ZERO HALLUCINATION: Do not invent questions.
 You are a Math exam typesetter.
 Extract ONLY the main question numbers (e.g., 第1問, 第2問).
 DO NOT extract sub-questions like (1), (2).
-For each main section, output exactly ONE question with `q_number="解答欄"` and `q_type="math_box"`.
+For each main section, output exactly ONE question with `q_number="解答欄"`, `q_type="math_box"`.
 DO NOT guess `university` or `year`. Set `instruction`="".
 """
             elif selected_subject == "地歴・社会":
@@ -156,29 +156,26 @@ ZERO HALLUCINATION.
 You are an expert typesetter for Science university entrance exams.
 Read the exam questions carefully and extract the EXACT question structure.
 
-[CRITICAL RULES FOR SCIENCE - FAILURE IS NOT AN OPTION]
-1. ZERO HALLUCINATION OF SUB-QUESTIONS:
-   - If a question asks for a SINGLE answer (e.g. "一つ選び番号で答えよ", "有効数字2桁で答えよ", "漢字で答えよ"):
-     Output EXACTLY ONE answer box. Do NOT create fake sub-questions like (1), (2), (3).
-     Set `symbols=None` and `q_type="word_fill"` (or `table_fill`).
+[CRITICAL RULES FOR SCIENCE]
+1. SINGLE ANSWER MULTIPLE CHOICE (組合せ・単一番号選択):
+   - When a question asks to choose ONE combination or number (e.g., "空欄ア・イに当てはまる語の組合せとして最も適当なものを、1～6のうちから一つ選び、番号で答えよ"):
+     The answer is just a SINGLE number (e.g. 3).
+     DO NOT output labels ["ア", "イ"]! Output a single question with `symbols=None` and `q_type="word_fill"`.
+   - Any question saying "一つ選び、番号で答えよ" or "記号で答えよ" takes EXACTLY ONE answer box.
 
-2. MULTIPLE CHOICE IS ONE ANSWER:
-   - "1〜4のうちから一つ選び" means the student writes ONE number (e.g., "3").
-   - DO NOT create boxes for 1, 2, 3, 4! That is a fatal error. Create ONLY ONE box for the question itself.
+2. MULTIPLE SUB-QUESTIONS WITHIN ONE QUESTION:
+   - ONLY when separate answers are explicitly required for each blank (e.g., "空欄エ・オに当てはまる語をそれぞれ答えよ"):
+     Set `symbols=["エ", "オ"]` and `q_type="word_fill"`.
 
-3. BLANKS IN ONE QUESTION (空欄補充):
-   - ONLY when multiple blanks are explicitly given (e.g., "空欄 ア・イ に当てはまる語"):
-     Set `symbols=["ア", "イ"]`.
-   - If there is only one blank or one final answer, `symbols` must be null/empty.
+3. DESCRIPTIONS / LIMITS / FORMULAS:
+   - Character limit (e.g. "15字以内で答えよ"): `q_type="char_grid"`, set `chars_limit=15`.
+   - Reaction equations (化学反応式): `q_type="lined_box"`, `line_count=2`.
+   - Structural formula (構造式): `q_type="lined_box"`, `line_count=3`.
 
-4. CALCULATION & DERIVATION (計算過程・式):
-   - ONLY if it explicitly asks to show derivation or chemical formula: use `q_type="lined_box"` or `q_type="math_box"`.
+4. SELECTIVE SECTIONS (選択問題):
+   - You MUST generate BOTH selective sections (e.g., Section 4 and Section 5) so students can select either on paper.
 
-5. SELECTIVE SECTIONS (選択問題):
-   - If the exam has choice sections (e.g., "4と5から1題を選択"):
-     You MUST generate BOTH sections (Section 4 AND Section 5) so the user can choose which one to fill on the printed paper.
-
-6. Set `instruction` to "". Do NOT invent university or year.
+5. Set `instruction` to "". Do NOT guess university or year.
 """
             else:
                 prompt = "Extract questions. Mentally solve them. Set instruction to empty string."
@@ -354,6 +351,7 @@ Read the exam questions carefully and extract the EXACT question structure.
                     ])
 
                 elif selected_subject == "理科":
+                    # ★理科専用：紙面を最大限に有効活用する横並びフローレイアウト
                     sheet_count += 1
                     if sheet_count > 1:
                         lines.append("#pagebreak()")
@@ -367,36 +365,57 @@ Read the exam questions carefully and extract the EXACT question structure.
                         ")",
                         "#v(5pt)",
                         "#line(length: 100%, stroke: 1.2pt)",
-                        "#v(10pt)",
-                        "#columns(2, gutter: 16mm)[",
+                        "#v(8pt)",
                     ])
+
+                    # 設問群を横並びで配置可能なコンパクト枠とワイド枠に分類して組版
+                    lines.append("#grid(")
+                    lines.append("  columns: (1fr, 1fr),")
+                    lines.append("  column-gutter: 16mm,")
+                    lines.append("  row-gutter: 12pt,")
+
                     for q in questions:
-                        lines.append("  #block(breakable: false)[")
-                        lines.append(f'    #text(weight: "bold", size: 10pt)[【{q.q_number}】]')
-                        lines.append("    #v(3pt)")
-                        if q.q_type == "char_grid":
+                        if q.q_type in ["lined_box", "free_box"]:
+                            ln = q.line_count or 2
+                            lines.append(f'  grid.cell(colspan: 2)[')
+                            lines.append(f'    #text(weight: "bold", size: 9pt)[【{q.q_number}】]')
+                            lines.append(f'    #v(2pt)')
+                            lines.append(f'    #lined-box(lines: {ln})')
+                            lines.append(f'  ],')
+                        elif q.q_type == "char_grid":
                             c = q.chars_limit or 50
-                            lines.append(f"    #char-grid(chars: {c})")
+                            lines.append(f'  grid.cell(colspan: 2)[')
+                            lines.append(f'    #text(weight: "bold", size: 9pt)[【{q.q_number}】]')
+                            lines.append(f'    #v(2pt)')
+                            lines.append(f'    #char-grid(chars: {c})')
+                            lines.append(f'  ],')
                         elif q.q_type == "math_box":
-                            lines.append("    #science-calc-box(height-pt: 120pt)")
-                        elif q.q_type in ["lined_box", "free_box"]:
-                            ln = q.line_count or 3
-                            lines.append(f"    #lined-box(lines: {ln})")
+                            lines.append(f'  grid.cell(colspan: 2)[')
+                            lines.append(f'    #text(weight: "bold", size: 9pt)[【{q.q_number}】]')
+                            lines.append(f'    #v(2pt)')
+                            lines.append(f'    #science-calc-box(height-pt: 100pt)')
+                            lines.append(f'  ],')
                         else:
-                            # 記号・短答・単一解答：余計な初期値補完（1,2,3など）を排除
+                            # 短答・記号・数値：問1、問2を横にテンポよく並べる
                             if q.symbols and len(q.symbols) > 1:
-                                arr = ", ".join([f'"{s}"' for s in q.symbols])
-                                lines.append(f"    #symbol-table(symbols: ({arr},))")
+                                syms = ", ".join([f'"{s}"' for s in q.symbols])
+                                lines.append(f'  [')
+                                lines.append(f'    #text(weight: "bold", size: 9pt)[【{q.q_number}】]')
+                                lines.append(f'    #v(2pt)')
+                                lines.append(f'    #symbol-table(symbols: ({syms},))')
+                                lines.append(f'  ],')
                             else:
-                                # 単一の解答枠（1つ選択・単一数値）
-                                label = q.symbols[0] if (q.symbols and len(q.symbols) == 1) else "解答"
-                                lines.append(f'    #word-box(symbols: ("{label}",))')
-                        lines.append("    #v(12pt)")
-                        lines.append("  ]")
-                    lines.append("]")
+                                lines.append(f'  [')
+                                lines.append(f'    #text(weight: "bold", size: 9pt)[【{q.q_number}】]')
+                                lines.append(f'    #v(2pt)')
+                                lines.append(f'    #table(columns: (1fr,), rows: (26pt,), align: center + horizon, stroke: 0.5pt, fill: white)[]')
+                                lines.append(f'  ],')
+
+                    lines.append(")")
                     lines.append("")
 
                 else:
+                    # 英語・地歴
                     sheet_count += 1
                     if sheet_count > 1:
                         lines.append("#pagebreak()")
