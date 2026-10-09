@@ -10,6 +10,7 @@ from google.genai import types
 from schemas.question_schema import ExamPaper
 
 GOOGLE_FORM_URL = "https://forms.gle/x7isU1uRdGtiT5ZPA"
+TOSHIN_URL = "https://www.toshin-kakomon.com/"
 
 st.set_page_config(
     page_title="大学入試解答用紙ジェネレーター",
@@ -17,7 +18,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# ライト・ダーク両対応のプロフェッショナルUIスタイル
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap');
@@ -49,7 +49,17 @@ st.markdown("""
         border: 1px solid rgba(150, 150, 150, 0.3);
         border-radius: 6px;
         padding: 12px;
+        margin-bottom: 0.5rem;
+    }
+    .notice-box {
+        font-size: 0.82rem;
+        color: #64748b;
         margin-bottom: 1.2rem;
+        line-height: 1.5;
+    }
+    .notice-box a {
+        color: #0284c7;
+        text-decoration: underline;
     }
     .stButton>button {
         width: 100%;
@@ -105,6 +115,13 @@ selected_subject = st.radio(
 )
 
 uploaded_file = st.file_uploader("問題PDFをアップロード", type=["pdf"])
+
+# 規約・著作権に配慮した安全な外部リンク案内
+st.markdown(f"""
+<div class="notice-box">
+    ※ 過去問PDFをお持ちでない場合は、各大学の公式サイトや <a href="{TOSHIN_URL}" target="_blank" rel="noopener noreferrer">東進 過去問データベース</a> などの公式ポータル等から各自ご用意ください。
+</div>
+""", unsafe_allow_html=True)
 
 include_questions = st.checkbox("問題用紙もまとめて1つのPDFにする（問題 ＋ 解答用紙）", value=False)
 
@@ -217,32 +234,37 @@ ZERO HALLUCINATION.
 You are an expert typesetter for Science university entrance exams.
 Read the exam questions carefully and extract the EXACT question structure.
 
-[CRITICAL RULES FOR SCIENCE - ADAPTING ENGLISH BEST PRACTICES]
-1. SINGLE ANSWER MULTIPLE CHOICE (組合せ・単一番号選択):
+[CRITICAL RULES FOR SCIENCE]
+1. NUMERICAL & SIGNIFICANT FIGURES ARE SINGLE GENERAL BOXES (数値計算・有効数字):
+   - Questions saying "有効数字2桁で答えよ", "有効数字3桁で", "整数で答えよ", or "数値を求めよ":
+     NEVER use `exact_word_fill`! Numerical answers need decimal points and powers (e.g., 0.42, 3.6x10^-2).
+     You MUST use `q_type="word_fill"` with `symbols=None` (a single open box).
+
+2. ONLY TEXT EXTRACTION USES EXACT CHARACTER BOXES:
+   - ONLY when it explicitly asks for exact Japanese characters (e.g., "漢字2文字で答えよ", "3文字で抜き出せ"):
+     Use `q_type="exact_word_fill"`, set `chars_limit` to that number.
+
+3. SINGLE ANSWER MULTIPLE CHOICE (組合せ・単一番号選択):
    - "一つ選び、番号で答えよ" or "記号で答えよ":
      Output EXACTLY ONE answer box with `q_type="table_fill"`. Do NOT create boxes for individual choices!
 
-2. EXACT CHARACTER COUNT (e.g., "2文字で答えよ", "漢字2文字で"):
-   - MUST use `q_type="exact_word_fill"`. Set `chars_limit` to the exact count (e.g., 2).
+4. MULTIPLE SUB-QUESTIONS IN ONE QUESTION:
+   - When multiple blanks are explicitly required (e.g., "空欄エ・オに当てはまる語"):
+     Set `symbols=["エ", "オ"]` and `q_type="word_fill"`.
 
-3. MULTIPLE SUB-QUESTIONS OR LABELS IN ONE QUESTION:
-   - When multiple blanks are explicitly given (e.g., "空欄エ・オに当てはまる語"):
-     Set `symbols=["エ", "オ"]` and `q_type="symbol-table"` or `q_type="word_fill"`.
-
-4. DESCRIPTIONS / LIMITS / FORMULAS:
+5. DESCRIPTIONS & FORMULAS:
    - "○字以内で説明せよ": `q_type="char_grid"`, set `chars_limit`.
-   - Reaction equations (化学反応式) or structure: `q_type="lined_box"`, `line_count=2`.
-   - Calculation process (計算過程): `q_type="math_box"`.
+   - Chemical formula or reaction: `q_type="lined_box"`, `line_count=2`.
+   - Calculation process: `q_type="math_box"`.
 
-5. SELECTIVE SECTIONS (選択問題):
-   - You MUST generate BOTH selective sections (e.g., Section 4 and Section 5).
+6. SELECTIVE SECTIONS:
+   - Generate BOTH selective sections (e.g., Section 4 and Section 5).
 
-6. Set `instruction` to "". Do NOT guess university or year.
+7. Set `instruction` to "". Do NOT guess university or year.
 """
             else:
                 prompt = "Extract questions. Mentally solve them. Set instruction to empty string."
 
-            # 503エラー対策のリトライ処理（最大3回自動再試行）
             max_retries = 3
             response = None
             for attempt in range(1, max_retries + 1):
