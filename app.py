@@ -17,14 +17,13 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 実務ツール仕様のプロフェッショナルなUIスタイル
+# ライト・ダーク両対応のプロフェッショナルUIスタイル
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap');
     
     html, body, [class*="css"] {
         font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif;
-        color: #1e293b;
     }
     .block-container {
         padding-top: 2.5rem;
@@ -32,7 +31,7 @@ st.markdown("""
         max-width: 820px;
     }
     .header-box {
-        border-bottom: 2px solid #0f172a;
+        border-bottom: 2px solid var(--text-color, #0f172a);
         padding-bottom: 1rem;
         margin-bottom: 2rem;
     }
@@ -40,16 +39,14 @@ st.markdown("""
         font-size: 1.8rem;
         font-weight: 700;
         letter-spacing: -0.02em;
-        color: #0f172a;
         margin-bottom: 0.3rem;
     }
     .header-sub {
         font-size: 0.9rem;
-        color: #475569;
+        opacity: 0.8;
     }
     div[data-testid="stFileUploader"] {
-        background-color: #f8fafc;
-        border: 1px solid #cbd5e1;
+        border: 1px solid rgba(150, 150, 150, 0.3);
         border-radius: 6px;
         padding: 12px;
         margin-bottom: 1.2rem;
@@ -60,20 +57,18 @@ st.markdown("""
         height: 3.2rem;
         font-weight: 700;
         font-size: 1.05rem;
-        background-color: #0f172a;
-        color: #ffffff;
-        border: 1px solid #0f172a;
+        background-color: #2563eb;
+        color: #ffffff !important;
+        border: none;
         transition: all 0.2s ease;
     }
     .stButton>button:hover {
-        background-color: #1e293b;
-        color: #ffffff;
-        border-color: #1e293b;
+        background-color: #1d4ed8;
     }
     .footer-container {
         margin-top: 3.5rem;
         padding-top: 1.5rem;
-        border-top: 1px solid #e2e8f0;
+        border-top: 1px solid rgba(150, 150, 150, 0.2);
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -82,12 +77,12 @@ st.markdown("""
     }
     .footer-text {
         font-size: 0.82rem;
-        color: #64748b;
+        opacity: 0.75;
     }
     .footer-link {
         font-size: 0.85rem;
         font-weight: 500;
-        color: #0284c7;
+        color: #38bdf8;
         text-decoration: none;
     }
     .footer-link:hover {
@@ -143,7 +138,7 @@ if uploaded_file is not None:
 
     with st.expander("問題PDFの確認", expanded=False):
         b64_pdf = base64.b64encode(pdf_bytes).decode("utf-8")
-        pdf_display = f'<iframe src="data:application/pdf;base64,{b64_pdf}" width="100%" height="600" type="application/pdf" style="border: 1px solid #cbd5e1; border-radius: 4px;"></iframe>'
+        pdf_display = f'<iframe src="data:application/pdf;base64,{b64_pdf}" width="100%" height="600" type="application/pdf" style="border: 1px solid rgba(150,150,150,0.3); border-radius: 4px;"></iframe>'
         st.markdown(pdf_display, unsafe_allow_html=True)
 
     if st.button("解答用紙を作成する"):
@@ -247,18 +242,30 @@ Read the exam questions carefully and extract the EXACT question structure.
             else:
                 prompt = "Extract questions. Mentally solve them. Set instruction to empty string."
 
-            response = client.models.generate_content(
-                model="gemini-3.5-flash-lite",
-                contents=[
-                    types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"),
-                    prompt
-                ],
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_schema=ExamPaper,
-                    temperature=0.0,
-                ),
-            )
+            # 503エラー対策のリトライ処理（最大3回自動再試行）
+            max_retries = 3
+            response = None
+            for attempt in range(1, max_retries + 1):
+                try:
+                    response = client.models.generate_content(
+                        model="gemini-3.5-flash-lite",
+                        contents=[
+                            types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"),
+                            prompt
+                        ],
+                        config=types.GenerateContentConfig(
+                            response_mime_type="application/json",
+                            response_schema=ExamPaper,
+                            temperature=0.0,
+                        ),
+                    )
+                    break
+                except Exception as api_err:
+                    err_str = str(api_err)
+                    if ("503" in err_str or "UNAVAILABLE" in err_str) and attempt < max_retries:
+                        time.sleep(attempt * 3)
+                        continue
+                    raise api_err
 
             exam = ExamPaper.model_validate_json(response.text)
             exam.subject = selected_subject
@@ -595,7 +602,6 @@ Read the exam questions carefully and extract the EXACT question structure.
         except Exception as e:
             st.error(f"エラー詳細: {str(e)}")
 
-# 常時表示されるフッター（Googleフォーム連携）
 st.markdown(f"""
 <div class="footer-container">
     <div class="footer-text">
