@@ -116,7 +116,6 @@ selected_subject = st.radio(
 
 uploaded_file = st.file_uploader("問題PDFをアップロード", type=["pdf"])
 
-# 規約・著作権に配慮した安全な外部リンク案内
 st.markdown(f"""
 <div class="notice-box">
     ※ 過去問PDFをお持ちでない場合は、各大学の公式サイトや <a href="{TOSHIN_URL}" target="_blank" rel="noopener noreferrer">東進 過去問データベース</a> などの公式ポータル等から各自ご用意ください。
@@ -231,36 +230,33 @@ ZERO HALLUCINATION.
 """
             elif selected_subject == "理科":
                 prompt = """
-You are an expert typesetter for Science university entrance exams.
-Read the exam questions carefully and extract the EXACT question structure.
+You are an expert typesetter for Science mock exams and entrance exams (Physics, Chemistry, Biology).
+Analyze the provided Science exam PDF and extract the EXACT question structure.
 
-[CRITICAL RULES FOR SCIENCE]
-1. NUMERICAL & SIGNIFICANT FIGURES ARE SINGLE GENERAL BOXES (数値計算・有効数字):
-   - Questions saying "有効数字2桁で答えよ", "有効数字3桁で", "整数で答えよ", or "数値を求めよ":
-     NEVER use `exact_word_fill`! Numerical answers need decimal points and powers (e.g., 0.42, 3.6x10^-2).
-     You MUST use `q_type="word_fill"` with `symbols=None` (a single open box).
+[MOCK EXAM LAYOUT RULES FOR SCIENCE]
+1. SINGLE ANSWER MULTIPLE CHOICE (最も重要: 番号・記号選択は1枠のみ):
+   - "空欄ア・イに当てはまる語の組合せとして最も適当なものを、1～6のうちから一つ選び、番号で答えよ"
+   - "1～4のうちから一つ選び、番号で答えよ"
+   -> The answer is just ONE single number (e.g. 3).
+   -> Output ONE question with `symbols=None`, `q_type="table_fill"`.
+   -> NEVER output labels ["ア", "イ"] or choices ["1","2","3","4"]! That is a fatal error.
 
-2. ONLY TEXT EXTRACTION USES EXACT CHARACTER BOXES:
-   - ONLY when it explicitly asks for exact Japanese characters (e.g., "漢字2文字で答えよ", "3文字で抜き出せ"):
-     Use `q_type="exact_word_fill"`, set `chars_limit` to that number.
+2. NUMERICAL & SHORT VALUE (数値計算・有効数字・整数):
+   - "有効数字2桁で答えよ", "整数で答えよ", "数値を求めよ":
+     Output with `symbols=None`, `q_type="word_fill"`.
 
-3. SINGLE ANSWER MULTIPLE CHOICE (組合せ・単一番号選択):
-   - "一つ選び、番号で答えよ" or "記号で答えよ":
-     Output EXACTLY ONE answer box with `q_type="table_fill"`. Do NOT create boxes for individual choices!
-
-4. MULTIPLE SUB-QUESTIONS IN ONE QUESTION:
-   - When multiple blanks are explicitly required (e.g., "空欄エ・オに当てはまる語"):
+3. MULTIPLE SUB-BLANKS (1問の中に複数の解答欄がある場合のみ):
+   - "空欄エ・オに当てはまる語をそれぞれ答えよ":
      Set `symbols=["エ", "オ"]` and `q_type="word_fill"`.
 
-5. DESCRIPTIONS & FORMULAS:
-   - "○字以内で説明せよ": `q_type="char_grid"`, set `chars_limit`.
-   - Chemical formula or reaction: `q_type="lined_box"`, `line_count=2`.
-   - Calculation process: `q_type="math_box"`.
+4. FORMULA & REACTION (化学反応式・構造式・理由説明):
+   - "化学反応式で表せ", "構造式を答えよ": `q_type="lined_box"`, `line_count=2`.
+   - "15字以内で答えよ": `q_type="char_grid"`, `chars_limit=15`.
 
-6. SELECTIVE SECTIONS:
-   - Generate BOTH selective sections (e.g., Section 4 and Section 5).
+5. SELECTIVE SECTIONS (選択問題):
+   - Generate BOTH selective sections (Section 4 AND Section 5) so students can select either on paper.
 
-7. Set `instruction` to "". Do NOT guess university or year.
+6. Set `instruction` to "". Do NOT guess university or year.
 """
             else:
                 prompt = "Extract questions. Mentally solve them. Set instruction to empty string."
@@ -317,7 +313,7 @@ Read the exam questions carefully and extract the EXACT question structure.
 
             sheet_count = 0
 
-            for sec in exam.sections:
+            for sec_idx, sec in enumerate(exam.sections):
                 questions = sec.questions
 
                 if selected_subject == "国語":
@@ -447,79 +443,58 @@ Read the exam questions carefully and extract the EXACT question structure.
                     ])
 
                 elif selected_subject == "理科":
-                    sheet_count += 1
-                    if sheet_count > 1:
-                        lines.append("#pagebreak()")
-                    lines.extend([
-                        "#grid(",
-                        "  columns: (1fr, auto),",
-                        "  gutter: 12pt,",
-                        "  align: (left + top, right + top),",
-                        f'  text(size: 13pt, weight: "bold")[{year_display} {univ_display} 理科 解答用紙 【{sec.big_number}】],',
-                        '  table(columns: (45pt, 70pt, 35pt, 90pt, 45pt), rows: (16pt, 24pt), align: center + horizon, stroke: 0.5pt, table.cell(fill: luma(245))[受験番号], table.cell(rowspan: 2, fill: white)[], table.cell(fill: luma(245))[氏名], table.cell(rowspan: 2, fill: white)[], table.cell(fill: luma(235))[※得点], table.cell(fill: white)[])',
-                        ")",
-                        "#v(5pt)",
-                        "#line(length: 100%, stroke: 1.2pt)",
-                        "#v(8pt)",
-                    ])
+                    # ★模試完全準拠：2大問で1ページに収め、紙面の無駄をゼロにする
+                    # （奇数番目の大問で改ページ、偶数番目は同じページの下半分に配置）
+                    if sec_idx % 2 == 0:
+                        sheet_count += 1
+                        if sheet_count > 1:
+                            lines.append("#pagebreak()")
+                        lines.extend([
+                            "#grid(",
+                            "  columns: (1fr, auto),",
+                            "  gutter: 12pt,",
+                            "  align: (left + top, right + top),",
+                            f'  text(size: 13pt, weight: "bold")[{year_display} {univ_display} 理科 解答用紙],',
+                            '  table(columns: (45pt, 70pt, 35pt, 90pt, 45pt), rows: (16pt, 24pt), align: center + horizon, stroke: 0.5pt, table.cell(fill: luma(245))[受験番号], table.cell(rowspan: 2, fill: white)[], table.cell(fill: luma(245))[氏名], table.cell(rowspan: 2, fill: white)[], table.cell(fill: luma(235))[※得点], table.cell(fill: white)[])',
+                            ")",
+                            "#v(4pt)",
+                            "#line(length: 100%, stroke: 1.2pt)",
+                            "#v(6pt)",
+                        ])
+                    else:
+                        lines.append("#v(10pt)")
 
-                    lines.append("#grid(")
-                    lines.append("  columns: (1fr, 1fr),")
-                    lines.append("  column-gutter: 16mm,")
-                    lines.append("  row-gutter: 12pt,")
+                    # 大問の見出しバー
+                    sec_title = f"【{sec.big_number}】"
+                    lines.append(f'#rect(width: 100%, fill: luma(240), stroke: 0.5pt + luma(80), inset: 4pt)[#text(weight: "bold", size: 9pt)[{sec_title}]]')
+                    lines.append("#v(2pt)")
 
-                    col_index = 0
+                    # 模試本番と同じく、問1、問2、問3と横に続けて敷き詰めるフロー配置
+                    lines.append("#block[")
+                    lines.append("  #stack(")
+                    lines.append("    dir: ltr,")
+                    lines.append("    spacing: 6pt,")
+
                     for q in questions:
-                        is_wide = q.q_type in ["lined_box", "free_box", "char_grid", "math_box"]
-                        
-                        if is_wide:
-                            if col_index % 2 == 1:
-                                lines.append("  [],")
-                                col_index += 1
-                            
-                            lines.append("  grid.cell(colspan: 2)[")
-                            lines.append(f'    #text(weight: "bold", size: 9pt)[【{q.q_number}】]')
-                            lines.append("    #v(2pt)")
-                            if q.q_type == "char_grid":
-                                c = q.chars_limit or 50
-                                lines.append(f"    #char-grid(chars: {c})")
-                            elif q.q_type == "math_box":
-                                lines.append("    #science-calc-box(height-pt: 100pt)")
-                            else:
-                                ln = q.line_count or 2
-                                lines.append(f"    #lined-box(lines: {ln})")
-                            lines.append("  ],")
-                            col_index += 2
-                        elif q.q_type == "exact_word_fill":
-                            lines.append("  [")
-                            lines.append(f'    #text(weight: "bold", size: 9pt)[【{q.q_number}】]')
-                            lines.append("    #v(2pt)")
-                            symbols = q.symbols or [""]
-                            arr = ", ".join([f'"{s}"' for s in symbols])
-                            c = q.chars_limit or 4
-                            lines.append(f"    #exact-char-box(symbols: ({arr},), chars: {c})")
-                            lines.append("  ],")
-                            col_index += 1
+                        q_name = q.q_number
+                        if q.q_type in ["lined_box", "free_box"]:
+                            lines.append(f'    science-cell(label: "{q_name}", width-scale: 2, height-pt: 32pt)[],')
+                        elif q.q_type == "char_grid":
+                            c = q.chars_limit or 15
+                            lines.append(f'    science-cell(label: "{q_name}", note: "{c}字", width-scale: 2, height-pt: 32pt)[#char-grid(chars: {c})],')
+                        elif q.q_type == "table_fill":
+                            # 記号選択：幅50ptのコンパクト1マス
+                            lines.append(f'    science-cell(label: "{q_name}", width-scale: 1, height-pt: 28pt)[],')
                         else:
-                            lines.append("  [")
-                            lines.append(f'    #text(weight: "bold", size: 9pt)[【{q.q_number}】]')
-                            lines.append("    #v(2pt)")
-                            if q.symbols and len(q.symbols) > 1:
-                                syms = ", ".join([f'"{s}"' for s in q.symbols])
-                                lines.append(f"    #symbol-table(symbols: ({syms},))")
-                            else:
-                                label = q.symbols[0] if (q.symbols and len(q.symbols) == 1) else ""
-                                if label:
-                                    lines.append(f'    #word-box(symbols: ("{label}",))')
-                                else:
-                                    lines.append("    #table(columns: (1fr,), rows: (26pt,), align: center + horizon, stroke: 0.5pt, fill: white)[]")
-                            lines.append("  ],")
-                            col_index += 1
+                            # 数値・短答：幅110ptのゆったり枠
+                            lines.append(f'    science-cell(label: "{q_name}", width-scale: 2, height-pt: 28pt)[],')
 
-                    lines.append(")")
+                    lines.append("  )")
+                    lines.append("]")
                     lines.append("")
 
                 else:
+                    # 英語・地歴
                     sheet_count += 1
                     if sheet_count > 1:
                         lines.append("#pagebreak()")

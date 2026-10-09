@@ -138,7 +138,7 @@
   ]
 }
 
-// ==================== 2. 数学・理科計算コンポーネント ====================
+// ==================== 2. 数学コンポーネント ====================
 #let math-calc-box(height-pt: 480pt, divided: true) = {
   rect(
     width: 100%,
@@ -154,20 +154,7 @@
   )
 }
 
-#let science-calc-box(height-pt: 120pt) = {
-  rect(
-    width: 100%,
-    height: height-pt,
-    stroke: 0.6pt + luma(70),
-    fill: white,
-    inset: 4pt,
-    [
-      #align(top + left)[#text(size: 8pt, fill: luma(120))[【計算過程・理由】]]
-    ]
-  )
-}
-
-// ==================== 3. 英語・理科・共通コンポーネント ====================
+// ==================== 3. 英語・共通コンポーネント ====================
 #let char-grid(chars: 100, cols-per-line: 20) = {
   let rows = calc.ceil(chars / cols-per-line)
   let cell-size = 6.5mm
@@ -225,7 +212,6 @@
   )
 }
 
-// ★理科・共通：4個で横幅全体（100%）を過不足なく埋めるテーブル設定
 #let symbol-table(symbols: ("(1)", "(2)", "(3)", "(4)")) = {
   let count = symbols.len()
   let cols-per-row = 4
@@ -278,4 +264,29 @@
       )
     })
   )
+}
+
+// ==================== 4. 理科模試仕様テーブルコンポーネント ====================
+// 横並びでコンパクトに問1、問2、問3と詰めて配置するセル
+#let science-cell(label: "問1", note: "", width-scale: 1, height-pt: 30pt, body: []) = {
+  let w = if width-scale == 1 { 50pt } else if width-scale == 2 { 110pt } else { 1fr }
+  box(width: w, stroke: 0.5pt + luma(80))[
+    #stack(
+      dir: ttb,
+      rect(
+        width: 100%,
+        height: 16pt,
+        stroke: (bottom: 0.5pt + luma(80)),
+        fill: luma(245),
+        align(center + horizon)[#text(size: 8pt, weight: "bold")[#label #if note != "" [#text(size: 6.5pt, fill: luma(100))[（#note）]]]]
+      ),
+      rect(
+        width: 100%,
+        height: height-pt,
+        stroke: none,
+        fill: white,
+        align(center + horizon)[#body]
+      )
+    )
+  ]
 }
