@@ -215,7 +215,7 @@ Read the exam questions carefully and extract the EXACT question structure.
                 '  flipped: true,',
                 '  margin: (x: 14mm, top: 12mm, bottom: 12mm)',
                 ')',
-                '#set text(font: ("Noto Serif CJK JP", "Noto Sans CJK JP", "IPAexGothic", "IPAGothic", "Yu Gothic"), lang: "ja", size: 9.5pt)',
+                '#set text(font: ("Noto Serif CJK JP", "Noto Sans CJK JP", "IPAexGothic", "IPAGothic"), lang: "ja", size: 9.5pt)',
                 "",
             ]
 
@@ -351,7 +351,6 @@ Read the exam questions carefully and extract the EXACT question structure.
                     ])
 
                 elif selected_subject == "理科":
-                    # ★理科専用：紙面を最大限に有効活用する横並びフローレイアウト
                     sheet_count += 1
                     if sheet_count > 1:
                         lines.append("#pagebreak()")
@@ -368,48 +367,47 @@ Read the exam questions carefully and extract the EXACT question structure.
                         "#v(8pt)",
                     ])
 
-                    # 設問群を横並びで配置可能なコンパクト枠とワイド枠に分類して組版
                     lines.append("#grid(")
                     lines.append("  columns: (1fr, 1fr),")
                     lines.append("  column-gutter: 16mm,")
                     lines.append("  row-gutter: 12pt,")
 
+                    # 列スロットのパリティ（現在左列か右列か）を追跡
+                    col_index = 0
                     for q in questions:
-                        if q.q_type in ["lined_box", "free_box"]:
-                            ln = q.line_count or 2
-                            lines.append(f'  grid.cell(colspan: 2)[')
+                        is_wide = q.q_type in ["lined_box", "free_box", "char_grid", "math_box"]
+                        
+                        if is_wide:
+                            # 2列幅のアイテムを置く際、奇数番目（右列が空いている状態）ならダミーセルで列を埋めて改行
+                            if col_index % 2 == 1:
+                                lines.append("  [],")
+                                col_index += 1
+                            
+                            lines.append("  grid.cell(colspan: 2)[")
                             lines.append(f'    #text(weight: "bold", size: 9pt)[【{q.q_number}】]')
-                            lines.append(f'    #v(2pt)')
-                            lines.append(f'    #lined-box(lines: {ln})')
-                            lines.append(f'  ],')
-                        elif q.q_type == "char_grid":
-                            c = q.chars_limit or 50
-                            lines.append(f'  grid.cell(colspan: 2)[')
-                            lines.append(f'    #text(weight: "bold", size: 9pt)[【{q.q_number}】]')
-                            lines.append(f'    #v(2pt)')
-                            lines.append(f'    #char-grid(chars: {c})')
-                            lines.append(f'  ],')
-                        elif q.q_type == "math_box":
-                            lines.append(f'  grid.cell(colspan: 2)[')
-                            lines.append(f'    #text(weight: "bold", size: 9pt)[【{q.q_number}】]')
-                            lines.append(f'    #v(2pt)')
-                            lines.append(f'    #science-calc-box(height-pt: 100pt)')
-                            lines.append(f'  ],')
+                            lines.append("    #v(2pt)")
+                            if q.q_type == "char_grid":
+                                c = q.chars_limit or 50
+                                lines.append(f"    #char-grid(chars: {c})")
+                            elif q.q_type == "math_box":
+                                lines.append("    #science-calc-box(height-pt: 100pt)")
+                            else:
+                                ln = q.line_count or 2
+                                lines.append(f"    #lined-box(lines: {ln})")
+                            lines.append("  ],")
+                            col_index += 2
                         else:
-                            # 短答・記号・数値：問1、問2を横にテンポよく並べる
+                            # 1列幅のアイテム（短答・記号）
+                            lines.append("  [")
+                            lines.append(f'    #text(weight: "bold", size: 9pt)[【{q.q_number}】]')
+                            lines.append("    #v(2pt)")
                             if q.symbols and len(q.symbols) > 1:
                                 syms = ", ".join([f'"{s}"' for s in q.symbols])
-                                lines.append(f'  [')
-                                lines.append(f'    #text(weight: "bold", size: 9pt)[【{q.q_number}】]')
-                                lines.append(f'    #v(2pt)')
-                                lines.append(f'    #symbol-table(symbols: ({syms},))')
-                                lines.append(f'  ],')
+                                lines.append(f"    #symbol-table(symbols: ({syms},))")
                             else:
-                                lines.append(f'  [')
-                                lines.append(f'    #text(weight: "bold", size: 9pt)[【{q.q_number}】]')
-                                lines.append(f'    #v(2pt)')
-                                lines.append(f'    #table(columns: (1fr,), rows: (26pt,), align: center + horizon, stroke: 0.5pt, fill: white)[]')
-                                lines.append(f'  ],')
+                                lines.append("    #table(columns: (1fr,), rows: (26pt,), align: center + horizon, stroke: 0.5pt, fill: white)[]")
+                            lines.append("  ],")
+                            col_index += 1
 
                     lines.append(")")
                     lines.append("")
