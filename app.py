@@ -12,28 +12,94 @@ from schemas.question_schema import ExamPaper
 GOOGLE_FORM_URL = "https://forms.gle/x7isU1uRdGtiT5ZPA"
 
 st.set_page_config(
-    page_title="入試解答用紙ジェネレーター",
-    page_icon="📝",
+    page_title="大学入試解答用紙ジェネレーター",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
+# 実務ツール仕様のプロフェッショナルなUIスタイル
 st.markdown("""
 <style>
-    .block-container { padding-top: 2rem; padding-bottom: 2rem; max-width: 860px; }
-    .header-box { text-align: center; margin-bottom: 1.8rem; }
-    .header-title { font-size: 2.1rem; font-weight: 800; color: #1e293b; margin-bottom: 0.4rem; }
-    .header-sub { font-size: 1rem; color: #64748b; }
-    div[data-testid="stFileUploader"] { margin-bottom: 1.2rem; border: 2px dashed #cbd5e1; border-radius: 12px; padding: 10px; }
-    .stButton>button { width: 100%; border-radius: 10px; height: 3.4rem; font-weight: bold; font-size: 1.15rem; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; border: none; }
-    .feedback-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.2rem; margin-top: 2rem; text-align: center; }
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap');
+    
+    html, body, [class*="css"] {
+        font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif;
+        color: #1e293b;
+    }
+    .block-container {
+        padding-top: 2.5rem;
+        padding-bottom: 3rem;
+        max-width: 820px;
+    }
+    .header-box {
+        border-bottom: 2px solid #0f172a;
+        padding-bottom: 1rem;
+        margin-bottom: 2rem;
+    }
+    .header-title {
+        font-size: 1.8rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: #0f172a;
+        margin-bottom: 0.3rem;
+    }
+    .header-sub {
+        font-size: 0.9rem;
+        color: #475569;
+    }
+    div[data-testid="stFileUploader"] {
+        background-color: #f8fafc;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        padding: 12px;
+        margin-bottom: 1.2rem;
+    }
+    .stButton>button {
+        width: 100%;
+        border-radius: 6px;
+        height: 3.2rem;
+        font-weight: 700;
+        font-size: 1.05rem;
+        background-color: #0f172a;
+        color: #ffffff;
+        border: 1px solid #0f172a;
+        transition: all 0.2s ease;
+    }
+    .stButton>button:hover {
+        background-color: #1e293b;
+        color: #ffffff;
+        border-color: #1e293b;
+    }
+    .footer-container {
+        margin-top: 3.5rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid #e2e8f0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+    .footer-text {
+        font-size: 0.82rem;
+        color: #64748b;
+    }
+    .footer-link {
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: #0284c7;
+        text-decoration: none;
+    }
+    .footer-link:hover {
+        text-decoration: underline;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 st.markdown("""
 <div class="header-box">
-    <div class="header-title">📝 入試解答用紙ジェネレーター</div>
-    <div class="header-sub">問題PDFから入試本番仕様のB4解答用紙を自動組版します。</div>
+    <div class="header-title">大学入試解答用紙ジェネレーター</div>
+    <div class="header-sub">入試過去問PDFから本番準拠のB4判解答用紙を自動組版・生成します。</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -45,7 +111,7 @@ selected_subject = st.radio(
 
 uploaded_file = st.file_uploader("問題PDFをアップロード", type=["pdf"])
 
-include_questions = st.checkbox("📄 問題用紙もまとめて1つのPDFにする（問題 ＋ 解答用紙）", value=False)
+include_questions = st.checkbox("問題用紙もまとめて1つのPDFにする（問題 ＋ 解答用紙）", value=False)
 
 def get_q_width_mm(q):
     base_gap = 14.0
@@ -72,15 +138,15 @@ def get_q_width_mm(q):
     return max(w, 15.0) + base_gap
 
 if uploaded_file is not None:
-    st.success(f"📎 読み込み完了: {uploaded_file.name}")
+    st.success(f"読み込み完了: {uploaded_file.name}")
     pdf_bytes = uploaded_file.read()
 
-    with st.expander("👁️ アップロードした問題PDFをプレビューする", expanded=False):
+    with st.expander("問題PDFの確認", expanded=False):
         b64_pdf = base64.b64encode(pdf_bytes).decode("utf-8")
-        pdf_display = f'<iframe src="data:application/pdf;base64,{b64_pdf}" width="100%" height="600" type="application/pdf" style="border: 1px solid #cbd5e1; border-radius: 8px;"></iframe>'
+        pdf_display = f'<iframe src="data:application/pdf;base64,{b64_pdf}" width="100%" height="600" type="application/pdf" style="border: 1px solid #cbd5e1; border-radius: 4px;"></iframe>'
         st.markdown(pdf_display, unsafe_allow_html=True)
 
-    if st.button("🚀 解答用紙を生成する"):
+    if st.button("解答用紙を作成する"):
         api_key = os.environ.get("GEMINI_API_KEY")
         if not api_key:
             st.error("システムエラー: APIキーが設定されていません。管理者に連絡してください。")
@@ -90,16 +156,16 @@ if uploaded_file is not None:
         progress_bar = st.progress(0)
 
         try:
-            progress_text.text("1/3: PDFデータを読み込み中...")
+            progress_text.text("1/3: PDFデータを解析中...")
             progress_bar.progress(20)
 
-            progress_text.text(f"2/3: 【{selected_subject}】専用エンジンで設問解析中...")
+            progress_text.text(f"2/3: {selected_subject}の設問構成を抽出中...")
             progress_bar.progress(50)
 
             client = genai.Client(api_key=api_key)
 
             # ==========================================
-            # 教科別 完全分離プロンプト（国語・英語は凍結維持）
+            # 教科別 完全分離プロンプト（国語・英語は完全固定）
             # ==========================================
             if selected_subject == "国語":
                 prompt = """
@@ -156,26 +222,27 @@ ZERO HALLUCINATION.
 You are an expert typesetter for Science university entrance exams.
 Read the exam questions carefully and extract the EXACT question structure.
 
-[CRITICAL RULES FOR SCIENCE]
+[CRITICAL RULES FOR SCIENCE - ADAPTING ENGLISH BEST PRACTICES]
 1. SINGLE ANSWER MULTIPLE CHOICE (組合せ・単一番号選択):
-   - When a question asks to choose ONE combination or number (e.g., "空欄ア・イに当てはまる語の組合せとして最も適当なものを、1～6のうちから一つ選び、番号で答えよ"):
-     The answer is just a SINGLE number (e.g. 3).
-     DO NOT output labels ["ア", "イ"]! Output a single question with `symbols=None` and `q_type="word_fill"`.
-   - Any question saying "一つ選び、番号で答えよ" or "記号で答えよ" takes EXACTLY ONE answer box.
+   - "一つ選び、番号で答えよ" or "記号で答えよ":
+     Output EXACTLY ONE answer box with `q_type="table_fill"`. Do NOT create boxes for individual choices!
 
-2. MULTIPLE SUB-QUESTIONS WITHIN ONE QUESTION:
-   - ONLY when separate answers are explicitly required for each blank (e.g., "空欄エ・オに当てはまる語をそれぞれ答えよ"):
-     Set `symbols=["エ", "オ"]` and `q_type="word_fill"`.
+2. EXACT CHARACTER COUNT (e.g., "2文字で答えよ", "漢字2文字で"):
+   - MUST use `q_type="exact_word_fill"`. Set `chars_limit` to the exact count (e.g., 2).
 
-3. DESCRIPTIONS / LIMITS / FORMULAS:
-   - Character limit (e.g. "15字以内で答えよ"): `q_type="char_grid"`, set `chars_limit=15`.
-   - Reaction equations (化学反応式): `q_type="lined_box"`, `line_count=2`.
-   - Structural formula (構造式): `q_type="lined_box"`, `line_count=3`.
+3. MULTIPLE SUB-QUESTIONS OR LABELS IN ONE QUESTION:
+   - When multiple blanks are explicitly given (e.g., "空欄エ・オに当てはまる語"):
+     Set `symbols=["エ", "オ"]` and `q_type="symbol-table"` or `q_type="word_fill"`.
 
-4. SELECTIVE SECTIONS (選択問題):
-   - You MUST generate BOTH selective sections (e.g., Section 4 and Section 5) so students can select either on paper.
+4. DESCRIPTIONS / LIMITS / FORMULAS:
+   - "○字以内で説明せよ": `q_type="char_grid"`, set `chars_limit`.
+   - Reaction equations (化学反応式) or structure: `q_type="lined_box"`, `line_count=2`.
+   - Calculation process (計算過程): `q_type="math_box"`.
 
-5. Set `instruction` to "". Do NOT guess university or year.
+5. SELECTIVE SECTIONS (選択問題):
+   - You MUST generate BOTH selective sections (e.g., Section 4 and Section 5).
+
+6. Set `instruction` to "". Do NOT guess university or year.
 """
             else:
                 prompt = "Extract questions. Mentally solve them. Set instruction to empty string."
@@ -372,13 +439,11 @@ Read the exam questions carefully and extract the EXACT question structure.
                     lines.append("  column-gutter: 16mm,")
                     lines.append("  row-gutter: 12pt,")
 
-                    # 列スロットのパリティ（現在左列か右列か）を追跡
                     col_index = 0
                     for q in questions:
                         is_wide = q.q_type in ["lined_box", "free_box", "char_grid", "math_box"]
                         
                         if is_wide:
-                            # 2列幅のアイテムを置く際、奇数番目（右列が空いている状態）ならダミーセルで列を埋めて改行
                             if col_index % 2 == 1:
                                 lines.append("  [],")
                                 col_index += 1
@@ -396,8 +461,17 @@ Read the exam questions carefully and extract the EXACT question structure.
                                 lines.append(f"    #lined-box(lines: {ln})")
                             lines.append("  ],")
                             col_index += 2
+                        elif q.q_type == "exact_word_fill":
+                            lines.append("  [")
+                            lines.append(f'    #text(weight: "bold", size: 9pt)[【{q.q_number}】]')
+                            lines.append("    #v(2pt)")
+                            symbols = q.symbols or [""]
+                            arr = ", ".join([f'"{s}"' for s in symbols])
+                            c = q.chars_limit or 4
+                            lines.append(f"    #exact-char-box(symbols: ({arr},), chars: {c})")
+                            lines.append("  ],")
+                            col_index += 1
                         else:
-                            # 1列幅のアイテム（短答・記号）
                             lines.append("  [")
                             lines.append(f'    #text(weight: "bold", size: 9pt)[【{q.q_number}】]')
                             lines.append("    #v(2pt)")
@@ -405,7 +479,11 @@ Read the exam questions carefully and extract the EXACT question structure.
                                 syms = ", ".join([f'"{s}"' for s in q.symbols])
                                 lines.append(f"    #symbol-table(symbols: ({syms},))")
                             else:
-                                lines.append("    #table(columns: (1fr,), rows: (26pt,), align: center + horizon, stroke: 0.5pt, fill: white)[]")
+                                label = q.symbols[0] if (q.symbols and len(q.symbols) == 1) else ""
+                                if label:
+                                    lines.append(f'    #word-box(symbols: ("{label}",))')
+                                else:
+                                    lines.append("    #table(columns: (1fr,), rows: (26pt,), align: center + horizon, stroke: 0.5pt, fill: white)[]")
                             lines.append("  ],")
                             col_index += 1
 
@@ -413,7 +491,6 @@ Read the exam questions carefully and extract the EXACT question structure.
                     lines.append("")
 
                 else:
-                    # 英語・地歴
                     sheet_count += 1
                     if sheet_count > 1:
                         lines.append("#pagebreak()")
@@ -497,16 +574,15 @@ Read the exam questions carefully and extract the EXACT question structure.
                 merged_output = io.BytesIO()
                 merger.write(merged_output)
                 final_pdf_bytes = merged_output.getvalue()
-                button_label = "📥 問題＋解答用紙PDFをダウンロード"
+                button_label = "問題＋解答用紙PDFをダウンロード"
                 file_display_name = f"{exam.subject}_問題および解答用紙.pdf"
             else:
                 final_pdf_bytes = answer_sheet_bytes
-                button_label = "📥 B4解答用紙PDFをダウンロード"
+                button_label = "B4解答用紙PDFをダウンロード"
                 file_display_name = f"{exam.subject}_解答用紙.pdf"
 
             progress_bar.progress(100)
-            progress_text.text("✨ PDFの作成が完了しました！")
-            st.balloons()
+            progress_text.text("組版が完了しました。")
 
             st.download_button(
                 label=button_label,
@@ -516,20 +592,19 @@ Read the exam questions carefully and extract the EXACT question structure.
                 type="primary"
             )
 
-            st.markdown(f"""
-            <div class="feedback-box">
-                <div style="font-weight: bold; margin-bottom: 0.5rem; color: #334155;">💬 ご意見・改善要望・不具合報告</div>
-                <div style="font-size: 0.9rem; color: #64748b; margin-bottom: 0.8rem;">
-                    「枠のサイズ感をこうしてほしい」「この大学の過去問に対応してほしい」など、<br>
-                    些細なことでもお気軽に匿名でお寄せください！
-                </div>
-                <a href="{GOOGLE_FORM_URL}" target="_blank" style="text-decoration: none;">
-                    <button style="padding: 0.5rem 1.2rem; border-radius: 6px; border: 1px solid #cbd5e1; background: white; font-weight: bold; color: #1e293b; cursor: pointer;">
-                        📝 フィードバックを送る（Googleフォーム）
-                    </button>
-                </a>
-            </div>
-            """, unsafe_allow_html=True)
-
         except Exception as e:
             st.error(f"エラー詳細: {str(e)}")
+
+# 常時表示されるフッター（Googleフォーム連携）
+st.markdown(f"""
+<div class="footer-container">
+    <div class="footer-text">
+        大学入試解答用紙ジェネレーター &mdash; 実務・学習用ツール
+    </div>
+    <div>
+        <a href="{GOOGLE_FORM_URL}" target="_blank" class="footer-link">
+            不具合報告・レイアウト改善要望はこちら
+        </a>
+    </div>
+</div>
+""", unsafe_allow_html=True)
