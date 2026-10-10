@@ -266,17 +266,28 @@
   )
 }
 
-// ==================== 4. 理科模試仕様テーブルセル ====================
-// 外部グリッドに綺麗にはめ込むためのコンポーネント（線が二重にならない仕様）
+// ==================== 4. 理科模試仕様・独立解答枠コンポーネント ====================
+// エクセル風の癒着を廃止し、一つ一つが独立したカード型の書きやすい枠
 #let science-cell(label: "問1", note: "", height-pt: 45pt, body: none) = {
-  grid(
-    columns: (100%),
-    rows: (18pt, height-pt),
-    rect(width: 100%, height: 100%, stroke: (bottom: 0.6pt + luma(80)), fill: luma(240), inset: 0pt)[
-      #align(center + horizon)[#text(size: 8.5pt, weight: "bold")[#label #if note != "" [#text(size: 7pt, fill: luma(100))[（#note）]]]]
-    ],
-    rect(width: 100%, height: 100%, stroke: none, fill: white, inset: 4pt)[
-      #if body != none { align(center + horizon)[#body] } else { [] }
+  rect(
+    width: 100%,
+    stroke: 0.8pt + luma(60), // 各枠が独立して見えるようしっかりした線
+    inset: 0pt,
+    radius: 3pt, // 少し丸みを持たせてモダンな模試用紙風に
+    fill: white,
+    [
+      #grid(
+        columns: (100%),
+        rows: (18pt, auto),
+        // 設問番号のヘッダー部分
+        rect(width: 100%, height: 100%, fill: luma(235), stroke: (bottom: 0.8pt + luma(60)), inset: 0pt, radius: (top: 3pt))[
+          #align(center + horizon)[#text(size: 9pt, weight: "bold", fill: luma(20))[#label #if note != "" [#text(size: 7.5pt, fill: luma(100))[（#note）]]]]
+        ],
+        // 受験生が書き込む白抜き部分
+        block(width: 100%, height: height-pt, inset: 4pt)[
+          #if body != none { align(center + horizon)[#body] } else { [] }
+        ]
+      )
     ]
   )
 }

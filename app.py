@@ -175,9 +175,6 @@ if uploaded_file is not None:
 
             client = genai.Client(api_key=api_key)
 
-            # ==========================================
-            # 教科別 完全分離プロンプト（国語・英語は完全固定）
-            # ==========================================
             if selected_subject == "国語":
                 prompt = """
 You are a highly precise typesetter for Japanese entrance exams. Read ONLY the "設問" (Questions) section.
@@ -445,7 +442,6 @@ Analyze the provided Science exam PDF and extract the EXACT question structure.
                     ])
 
                 elif selected_subject == "理科":
-                    # ★模試の解答用紙と同じ「用紙全体を使う表組みレイアウト」
                     if sec_idx % 2 == 0:
                         sheet_count += 1
                         if sheet_count > 1:
@@ -463,72 +459,78 @@ Analyze the provided Science exam PDF and extract the EXACT question structure.
                             "#v(6pt)",
                         ])
                     else:
-                        lines.append("#v(12pt)")
+                        lines.append("#v(14pt)")
 
+                    # 受験生が見やすいよう、大問のヘッダーを「独立した太い帯」にして明確に分離
                     sec_title = f"【{sec.big_number}】"
-                    lines.append(f'#rect(width: 100%, fill: luma(240), stroke: 0.5pt + luma(80), inset: 4pt)[#text(weight: "bold", size: 9pt)[{sec_title}]]')
-                    lines.append("#v(2pt)")
+                    lines.append(f'#rect(width: 100%, fill: luma(225), stroke: none, inset: 6pt, radius: 4pt)[#text(weight: "bold", size: 11pt, fill: luma(10))[#h(4pt){sec_title}]]')
+                    lines.append("#v(10pt)")
 
-                    # 4列均等割の表組みシステム
+                    # ★ここが最大の修正点：
+                    # 枠が癒着しないよう、14pt（約5mm）の隙間をすべての間に空ける
                     lines.append("#grid(")
                     lines.append("  columns: (1fr, 1fr, 1fr, 1fr),")
-                    lines.append("  stroke: 0.6pt + luma(80),")
-                    lines.append("  inset: 0pt,")
+                    lines.append("  gutter: 14pt,")
                     lines.append("  align: left + top,")
 
                     col_index = 0
                     for q in questions:
                         q_name = q.q_number
                         body_code = "none"
+                        note_str = ""
                         
+                        # 枠の大きさと高さを、余裕を持って書けるサイズに拡張
                         if q.q_type == "math_box":
                             span = 4
                             h = "140pt"
-                            body_code = "[#align(top + left)[#v(4pt)#h(4pt)#text(size: 8pt, fill: luma(120))[【計算過程・理由】]]]"
+                            body_code = "[#align(top + left)[#v(4pt)#h(4pt)#text(size: 8pt, fill: luma(120))[【計算過程・理由等】]]]"
                         elif q.q_type == "char_grid":
                             span = 4
-                            h = "100pt"
+                            h = "auto"
                             c = q.chars_limit or 50
-                            body_code = f"[#char-grid(chars: {c}, cols-per-line: 40)]"
+                            note_str = f"{c}字"
+                            body_code = f"[#v(6pt)#char-grid(chars: {c}, cols-per-line: 35)#v(6pt)]"
                         elif q.q_type in ["lined_box", "free_box"]:
                             span = 4
                             ln = q.line_count or 3
-                            h = f"{ln * 25}pt"
+                            h = "auto"
                             body_code = f"[#lined-box(lines: {ln})]"
                         elif q.q_type == "table_fill":
-                            # 記号：1列（約8.4cm）で十分
                             span = 1
-                            h = "45pt"
+                            h = "35pt"  # 記号枠：十分に書ける高さ（約12mm）
                         elif q.q_type == "exact_word_fill":
-                            # 漢字抜き出しなど：2列（約16.8cm）
                             span = 2
-                            h = "45pt"
-                            symbols = q.symbols or [""]
-                            arr = ", ".join([f'"{s}"' for s in symbols])
+                            h = "auto"
                             c = q.chars_limit or 4
-                            body_code = f"[#exact-char-box(symbols: ({arr},), chars: {c})]"
+                            note_str = f"{c}字"
+                            body_code = f"[#v(6pt)#char-grid(chars: {c}, cols-per-line: {c})#v(6pt)]"
                         else:
-                            # 数値計算など（word_fill）：2列（約16.8cm）
-                            span = 2
-                            h = "45pt"
+                            if q.symbols and len(q.symbols) > 1:
+                                span = 2
+                                h = "auto"
+                                syms = ", ".join([f'"{s}"' for s in q.symbols])
+                                body_code = f"[#v(6pt)#symbol-table(symbols: ({syms},))#v(6pt)]"
+                            else:
+                                span = 2
+                                h = "50pt"  # 数値計算枠：指数や分数を余裕で書ける高さ（約18mm）
 
-                        # 余り枠のパディング処理（行をまたがせない）
+                        # 列をはみ出す場合はダミーの空白を入れて改行
                         if col_index % 4 + span > 4:
                             rem = 4 - (col_index % 4)
                             for _ in range(rem):
-                                lines.append("  grid.cell(fill: luma(240))[],")
+                                lines.append("  [],")
                                 col_index += 1
                                 
                         lines.append(f'  grid.cell(colspan: {span})[')
-                        lines.append(f'    #science-cell(label: "{q_name}", height-pt: {h}, body: {body_code})')
+                        lines.append(f'    #science-cell(label: "{q_name}", note: "{note_str}", height-pt: {h}, body: {body_code})')
                         lines.append("  ],")
                         col_index += span
 
-                    # 最後の行の余白を埋める
+                    # 最後の行の余りをダミーで埋める
                     if col_index % 4 != 0:
                         rem = 4 - (col_index % 4)
                         for _ in range(rem):
-                            lines.append("  grid.cell(fill: luma(240))[],")
+                            lines.append("  [],")
 
                     lines.append(")")
                     lines.append("")
