@@ -138,7 +138,7 @@
   ]
 }
 
-// ==================== 2. 数学コンポーネント ====================
+// ==================== 2. 数学・理科計算コンポーネント ====================
 #let math-calc-box(height-pt: 480pt, divided: true) = {
   rect(
     width: 100%,
@@ -150,6 +150,20 @@
       #if divided [
         #line(start: (50%, 0%), end: (50%, 100%), stroke: (paint: luma(180), dash: "dashed", thickness: 0.5pt))
       ]
+    ]
+  )
+}
+
+// 国公立・難関大の記述式専用の計算枠
+#let science-calc-box(height-pt: 120pt) = {
+  rect(
+    width: 100%,
+    height: height-pt,
+    stroke: 0.6pt + luma(70),
+    fill: white,
+    inset: 4pt,
+    [
+      #align(top + left)[#text(size: 8pt, fill: luma(120))[【計算過程・理由等】]]
     ]
   )
 }
@@ -271,19 +285,17 @@
 #let science-cell(label: "問1", note: "", height-pt: 45pt, body: none) = {
   rect(
     width: 100%,
-    stroke: 0.8pt + luma(60), // 各枠が独立して見えるようしっかりした線
+    stroke: 0.8pt + luma(60),
     inset: 0pt,
-    radius: 3pt, // 少し丸みを持たせてモダンな模試用紙風に
+    radius: 3pt,
     fill: white,
     [
       #grid(
         columns: (100%),
         rows: (18pt, auto),
-        // 設問番号のヘッダー部分
         rect(width: 100%, height: 100%, fill: luma(235), stroke: (bottom: 0.8pt + luma(60)), inset: 0pt, radius: (top: 3pt))[
           #align(center + horizon)[#text(size: 9pt, weight: "bold", fill: luma(20))[#label #if note != "" [#text(size: 7.5pt, fill: luma(100))[（#note）]]]]
         ],
-        // 受験生が書き込む白抜き部分
         block(width: 100%, height: height-pt, inset: 4pt)[
           #if body != none { align(center + horizon)[#body] } else { [] }
         ]
