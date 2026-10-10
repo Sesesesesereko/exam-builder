@@ -266,26 +266,24 @@
   )
 }
 
-// ==================== 4. 理科模試仕様テーブルコンポーネント ====================
-// 横並びでコンパクトに問1、問2、問3と詰めて配置するセル
-#let science-cell(label: "問1", note: "", width-scale: 1, height-pt: 30pt, body: []) = {
-  let w = if width-scale == 1 { 50pt } else if width-scale == 2 { 110pt } else { 1fr }
-  box(width: w, stroke: 0.5pt + luma(80))[
+// ==================== 4. 理科模試仕様セル ====================
+#let science-cell(label: "問1", note: "", width-pt: 48pt, height-pt: 28pt, body: none) = {
+  box(width: width-pt)[
     #stack(
       dir: ttb,
       rect(
         width: 100%,
-        height: 16pt,
-        stroke: (bottom: 0.5pt + luma(80)),
+        height: 15pt,
+        stroke: 0.5pt + luma(80),
         fill: luma(245),
         align(center + horizon)[#text(size: 8pt, weight: "bold")[#label #if note != "" [#text(size: 6.5pt, fill: luma(100))[（#note）]]]]
       ),
       rect(
         width: 100%,
         height: height-pt,
-        stroke: none,
+        stroke: (left: 0.5pt + luma(80), right: 0.5pt + luma(80), bottom: 0.5pt + luma(80)),
         fill: white,
-        align(center + horizon)[#body]
+        align(center + horizon)[#if body != none [#body]]
       )
     )
   ]

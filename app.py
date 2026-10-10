@@ -443,8 +443,6 @@ Analyze the provided Science exam PDF and extract the EXACT question structure.
                     ])
 
                 elif selected_subject == "理科":
-                    # ★模試完全準拠：2大問で1ページに収め、紙面の無駄をゼロにする
-                    # （奇数番目の大問で改ページ、偶数番目は同じページの下半分に配置）
                     if sec_idx % 2 == 0:
                         sheet_count += 1
                         if sheet_count > 1:
@@ -464,37 +462,29 @@ Analyze the provided Science exam PDF and extract the EXACT question structure.
                     else:
                         lines.append("#v(10pt)")
 
-                    # 大問の見出しバー
                     sec_title = f"【{sec.big_number}】"
                     lines.append(f'#rect(width: 100%, fill: luma(240), stroke: 0.5pt + luma(80), inset: 4pt)[#text(weight: "bold", size: 9pt)[{sec_title}]]')
                     lines.append("#v(2pt)")
 
-                    # 模試本番と同じく、問1、問2、問3と横に続けて敷き詰めるフロー配置
+                    # 横に並べて折り返すレイアウト
                     lines.append("#block[")
-                    lines.append("  #stack(")
-                    lines.append("    dir: ltr,")
-                    lines.append("    spacing: 6pt,")
-
                     for q in questions:
                         q_name = q.q_number
                         if q.q_type in ["lined_box", "free_box"]:
-                            lines.append(f'    science-cell(label: "{q_name}", width-scale: 2, height-pt: 32pt)[],')
+                            lines.append(f'  #science-cell(label: "{q_name}", width-pt: 130pt, height-pt: 32pt)')
                         elif q.q_type == "char_grid":
                             c = q.chars_limit or 15
-                            lines.append(f'    science-cell(label: "{q_name}", note: "{c}字", width-scale: 2, height-pt: 32pt)[#char-grid(chars: {c})],')
+                            lines.append(f'  #science-cell(label: "{q_name}", note: "{c}字", width-pt: 130pt, height-pt: 32pt, body: char-grid(chars: {c}))')
                         elif q.q_type == "table_fill":
-                            # 記号選択：幅50ptのコンパクト1マス
-                            lines.append(f'    science-cell(label: "{q_name}", width-scale: 1, height-pt: 28pt)[],')
+                            # 記号選択：幅48pt
+                            lines.append(f'  #science-cell(label: "{q_name}", width-pt: 48pt, height-pt: 28pt)')
                         else:
-                            # 数値・短答：幅110ptのゆったり枠
-                            lines.append(f'    science-cell(label: "{q_name}", width-scale: 2, height-pt: 28pt)[],')
-
-                    lines.append("  )")
+                            # 数値・短答：幅105pt
+                            lines.append(f'  #science-cell(label: "{q_name}", width-pt: 105pt, height-pt: 28pt)')
                     lines.append("]")
                     lines.append("")
 
                 else:
-                    # 英語・地歴
                     sheet_count += 1
                     if sheet_count > 1:
                         lines.append("#pagebreak()")
