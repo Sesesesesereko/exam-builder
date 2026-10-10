@@ -266,25 +266,17 @@
   )
 }
 
-// ==================== 4. 理科模試仕様セル ====================
-#let science-cell(label: "問1", note: "", width-pt: 48pt, height-pt: 28pt, body: none) = {
-  box(width: width-pt)[
-    #stack(
-      dir: ttb,
-      rect(
-        width: 100%,
-        height: 15pt,
-        stroke: 0.5pt + luma(80),
-        fill: luma(245),
-        align(center + horizon)[#text(size: 8pt, weight: "bold")[#label #if note != "" [#text(size: 6.5pt, fill: luma(100))[（#note）]]]]
-      ),
-      rect(
-        width: 100%,
-        height: height-pt,
-        stroke: (left: 0.5pt + luma(80), right: 0.5pt + luma(80), bottom: 0.5pt + luma(80)),
-        fill: white,
-        align(center + horizon)[#if body != none [#body]]
-      )
-    )
-  ]
+// ==================== 4. 理科模試仕様テーブルセル ====================
+// 外部グリッドに綺麗にはめ込むためのコンポーネント（線が二重にならない仕様）
+#let science-cell(label: "問1", note: "", height-pt: 45pt, body: none) = {
+  grid(
+    columns: (100%),
+    rows: (18pt, height-pt),
+    rect(width: 100%, height: 100%, stroke: (bottom: 0.6pt + luma(80)), fill: luma(240), inset: 0pt)[
+      #align(center + horizon)[#text(size: 8.5pt, weight: "bold")[#label #if note != "" [#text(size: 7pt, fill: luma(100))[（#note）]]]]
+    ],
+    rect(width: 100%, height: 100%, stroke: none, fill: white, inset: 4pt)[
+      #if body != none { align(center + horizon)[#body] } else { [] }
+    ]
+  )
 }
