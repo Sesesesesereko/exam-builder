@@ -98,10 +98,6 @@ st.markdown("""
     .footer-link:hover {
         text-decoration: underline;
     }
-    /* ラジオボタンの強調 */
-    .stRadio label {
-        font-weight: 500;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -118,14 +114,13 @@ selected_subject = st.radio(
     horizontal=True
 )
 
-# ★ここに追加：理科専用のレイアウト切り替えボタン
 science_layout = ""
 if selected_subject == "理科":
     science_layout = st.radio(
         "💡 理科のレイアウト設定",
         options=["記号・短答メイン（模試・共通テスト風）", "記述メイン（国公立・難関大風）"],
         horizontal=True,
-        help="アップロードする問題の傾向に合わせて、解答用紙のレイアウトを切り替えます。"
+        help="アップロードする問題の傾向に合わせて、AIの抽出ロジックと解答用紙のレイアウトを切り替えます。"
     )
 
 uploaded_file = st.file_uploader("問題PDFをアップロード", type=["pdf"])
@@ -240,36 +235,42 @@ ZERO HALLUCINATION.
 4. DO NOT guess `university` or `year`. Set `instruction`="".
 """
             elif selected_subject == "理科":
-                prompt = """
-You are an expert typesetter for Science mock exams and entrance exams (Physics, Chemistry, Biology).
-Analyze the provided Science exam PDF and extract the EXACT question structure.
+                prompt_base = """You are an expert typesetter for Science university entrance exams.
+Read the exam questions carefully and extract the EXACT question structure.
 
-[CRITICAL RULES FOR SCIENCE]
-1. NUMERICAL QUESTIONS (数値・有効数字・計算結果):
-   - "有効数字○桁で答えよ", "整数で答えよ", "数値を求めよ":
-     NEVER use exact_word_fill. You MUST use `q_type="word_fill"` with `symbols=None`.
-
-2. SINGLE ANSWER MULTIPLE CHOICE (記号選択・番号選択):
-   - "一つ選び、番号で答えよ", "記号で答えよ":
-     Output EXACTLY ONE answer box with `q_type="table_fill"`. Do NOT create boxes for individual choices!
-
-3. MULTIPLE SUB-QUESTIONS IN ONE QUESTION:
-   - When multiple blanks are explicitly required (e.g., "空欄エ・オに当てはまる語"):
-     Set `symbols=["エ", "オ"]` and `q_type="word_fill"`.
-
-4. ONLY TEXT EXTRACTION USES EXACT CHARACTER BOXES:
-   - ONLY when it explicitly asks for exact Japanese characters (e.g., "漢字2文字で答えよ", "3文字で抜き出せ"):
-     Use `q_type="exact_word_fill"`, set `chars_limit` to that number.
-
-5. DESCRIPTIONS & FORMULAS:
-   - "○字以内で説明せよ": `q_type="char_grid"`, set `chars_limit`.
-   - Chemical formula or reaction: `q_type="lined_box"`, `line_count=2`.
-   - Calculation process: `q_type="math_box"`.
-
-6. SELECTIVE SECTIONS:
-   - Generate BOTH selective sections (e.g., Section 4 and Section 5).
-
-7. Set `instruction` to "". Do NOT guess university or year.
+[CRITICAL RULE: ZERO OMISSION]
+- You MUST extract EVERY explicitly numbered question and sub-question found in the text (e.g., 問1, 問2, (1), (2), (a), (b)).
+- Do NOT merge distinct sub-questions together. If the PDF has 問1 (a) and (b), output two separate objects.
+- Do NOT skip any questions.
+- Set `instruction` to "". Do NOT guess university or year.
+"""
+                # ★ボタンとAIのプロンプトを完全に連動
+                if "記述メイン" in science_layout:
+                    prompt = prompt_base + """
+[DESCRIPTIVE EXAM RULES (National Universities / e.g. Tsukuba, Tokyo)]
+1. ALMOST EVERYTHING IS A MATH/CALCULATION BOX:
+   - For physics/chemistry derivations, process, or equations, default to `q_type="math_box"`.
+2. TEXT DESCRIPTIONS:
+   - "○字以内で": `q_type="char_grid"`, set `chars_limit`.
+   - Explanations without limit: `q_type="lined_box"`, `line_count=3`.
+3. SHORT ANSWERS:
+   - Even simple answers need a blank space in descriptive exams. Use `q_type="free_box"`.
+4. DO NOT use `table_fill` or `word_fill` unless it's explicitly a massive data table.
+5. SELECTIVE SECTIONS: Generate BOTH selective sections (e.g., Section 4 and Section 5).
+"""
+                else:
+                    prompt = prompt_base + """
+[MOCK EXAM RULES (Symbols & Short Values / e.g. Sundai-Benesse)]
+1. SINGLE ANSWER MULTIPLE CHOICE (記号・番号選択):
+   - "一つ選び、番号で答えよ", "記号で選べ": Output EXACTLY ONE answer box with `q_type="table_fill"`. Do NOT create sub-boxes for the options themselves!
+2. NUMERICAL QUESTIONS (数値・有効数字):
+   - "有効数字○桁で答えよ", "整数で": Use `q_type="word_fill"` with `symbols=None`.
+3. MULTIPLE BLANKS:
+   - "空欄エ・オに...": Set `symbols=["エ", "オ"]`, `q_type="word_fill"`.
+4. TEXT DESCRIPTIONS & FORMULAS:
+   - "○字以内で": `q_type="char_grid"`, set `chars_limit`.
+   - Formula: `q_type="lined_box"`.
+5. SELECTIVE SECTIONS: Generate BOTH selective sections.
 """
             else:
                 prompt = "Extract questions. Mentally solve them. Set instruction to empty string."
@@ -458,7 +459,7 @@ Analyze the provided Science exam PDF and extract the EXACT question structure.
                 elif selected_subject == "理科":
                     if "記述メイン" in science_layout:
                         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                        # 【レイアウトA】記述メイン（国公立・難関大風） - 従来の2段組み
+                        # 【レイアウトA】記述メイン（国公立・難関大風）：巨大な2列グリッド
                         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                         sheet_count += 1
                         if sheet_count > 1:
@@ -474,41 +475,58 @@ Analyze the provided Science exam PDF and extract the EXACT question structure.
                             "#v(5pt)",
                             "#line(length: 100%, stroke: 1.2pt)",
                             "#v(10pt)",
-                            "#columns(2, gutter: 16mm)[",
                         ])
+                        
+                        # 用紙幅を2等分（1fr, 1fr）し、筑波大のような広大な枠を敷き詰める
+                        lines.append("#grid(")
+                        lines.append("  columns: (1fr, 1fr),")
+                        lines.append("  gutter: 16pt,")
+                        lines.append("  align: left + top,")
+
+                        col_index = 0
                         for q in questions:
-                            lines.append("  #block(breakable: false)[")
-                            lines.append(f'    #text(weight: "bold", size: 10pt)[【{q.q_number}】]')
-                            lines.append("    #v(3pt)")
-                            if q.q_type == "char_grid":
-                                c = q.chars_limit or 100
-                                lines.append(f"    #char-grid(chars: {c})")
-                            elif q.q_type == "math_box":
-                                lines.append("    #science-calc-box(height-pt: 150pt)")
+                            q_name = q.q_number
+                            body_code = "none"
+                            note_str = ""
+                            
+                            # 記述式では全ての枠を巨大化
+                            if q.q_type == "math_box":
+                                span = 1
+                                h = "220pt"
+                                body_code = "[#align(top + left)[#v(4pt)#h(4pt)#text(size: 8pt, fill: luma(120))[【計算過程・理由等】]]]"
+                            elif q.q_type == "char_grid":
+                                span = 2
+                                h = "auto"
+                                c = q.chars_limit or 50
+                                note_str = f"{c}字"
+                                body_code = f"[#v(6pt)#char-grid(chars: {c}, cols-per-line: 35)#v(6pt)]"
                             elif q.q_type in ["lined_box", "free_box"]:
+                                span = 2
                                 ln = q.line_count or 4
-                                lines.append(f"    #lined-box(lines: {ln})")
-                            elif q.q_type == "exact_word_fill":
-                                symbols = q.symbols or [""]
-                                arr = ", ".join([f'"{s}"' for s in symbols])
-                                c = q.chars_limit or 4
-                                lines.append(f"    #exact-char-box(symbols: ({arr},), chars: {c})")
-                            elif q.q_type == "table_fill":
-                                symbols = q.symbols or ["(1)", "(2)"]
-                                arr = ", ".join([f'"{s}"' for s in symbols])
-                                lines.append(f"    #symbol-table(symbols: ({arr},))")
-                            elif q.q_type == "word_fill":
-                                symbols = q.symbols or ["(1)", "(2)"]
-                                arr = ", ".join([f'"{s}"' for s in symbols])
-                                lines.append(f"    #word-box(symbols: ({arr},))")
-                            lines.append("    #v(12pt)")
-                            lines.append("  ]")
-                        lines.append("]")
+                                h = "auto"
+                                body_code = f"[#lined-box(lines: {ln})]"
+                            else:
+                                span = 1
+                                h = "100pt"  # 短答でも記述試験では広めに取る
+                                
+                            if col_index % 2 + span > 2:
+                                lines.append("  [],")
+                                col_index += 1
+                                
+                            lines.append(f'  grid.cell(colspan: {span})[')
+                            lines.append(f'    #science-cell(label: "{q_name}", note: "{note_str}", height-pt: {h}, body: {body_code})')
+                            lines.append("  ],")
+                            col_index += span
+
+                        if col_index % 2 != 0:
+                            lines.append("  [],")
+
+                        lines.append(")")
                         lines.append("")
                         
                     else:
                         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                        # 【レイアウトB】記号・短答メイン（模試風） - 4列グリッド
+                        # 【レイアウトB】記号・短答メイン（模試風）：ゆとりある4列グリッド
                         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                         if sec_idx % 2 == 0:
                             sheet_count += 1
