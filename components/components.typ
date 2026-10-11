@@ -292,7 +292,6 @@
   )
 }
 
-// ==================== 4. 理科・本番仕様セル ====================
 #let science-cell(label: "問1", note: "", height-pt: 45pt, body: none) = {
   rect(
     width: 100%,
@@ -311,5 +310,47 @@
         ]
       )
     ]
+  )
+}
+
+// ==================== 5. マークシート仕様コンポーネント ====================
+// 共通テスト・マーク模試本番仕様のスタジアム型マーク楕円バブル
+#let mark-bubble(label) = {
+  box(
+    width: 13.5pt,
+    height: 9pt,
+    radius: 4.5pt,
+    stroke: 0.5pt + luma(40),
+    fill: white,
+    align(center + horizon)[#text(size: 6.5pt, weight: "medium")[#label]]
+  )
+}
+
+// マークシートの1行（設問番号 ＋ 選択マーク群）
+#let mark-row(q-label, options: ("1", "2", "3", "4")) = {
+  table.cell(stroke: 0.4pt + luma(100), fill: white)[#text(weight: "bold", size: 8pt)[#q-label]]
+  table.cell(stroke: 0.4pt + luma(100), fill: white)[
+    #stack(
+      dir: ltr,
+      spacing: 3.5pt,
+      ..options.map(opt => mark-bubble(opt))
+    )
+  ]
+}
+
+// 受験番号マーク欄（0〜9の縦マーク）
+#let exam-id-mark-box(digits: 5) = {
+  table(
+    columns: (32pt, ..range(digits).map(_ => 16pt)),
+    rows: (14pt, 16pt, ..range(10).map(_ => 13pt)),
+    align: center + horizon,
+    stroke: 0.4pt + luma(80),
+    table.cell(rowspan: 2, fill: white)[#text(size: 7.5pt, weight: "bold")[受験番号]],
+    ..range(digits).map(i => table.cell(fill: white)[#text(size: 7pt)[#(i+1)]]),
+    ..range(digits).map(_ => table.cell(fill: white)[]),
+    ..range(10).map(d => (
+      table.cell(fill: white)[#text(size: 7pt, weight: "bold")[#d]],
+      ..range(digits).map(_ => table.cell(fill: white)[#mark-bubble(str(d))])
+    )).flatten()
   )
 }
