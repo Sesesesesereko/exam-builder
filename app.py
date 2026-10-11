@@ -21,83 +21,20 @@ st.set_page_config(
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap');
-    
-    html, body, [class*="css"] {
-        font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif;
-    }
-    .block-container {
-        padding-top: 2.5rem;
-        padding-bottom: 3rem;
-        max-width: 820px;
-    }
-    .header-box {
-        border-bottom: 2px solid var(--text-color, #0f172a);
-        padding-bottom: 1rem;
-        margin-bottom: 2rem;
-    }
-    .header-title {
-        font-size: 1.8rem;
-        font-weight: 700;
-        letter-spacing: -0.02em;
-        margin-bottom: 0.3rem;
-    }
-    .header-sub {
-        font-size: 0.9rem;
-        opacity: 0.8;
-    }
-    div[data-testid="stFileUploader"] {
-        border: 1px solid rgba(150, 150, 150, 0.3);
-        border-radius: 6px;
-        padding: 12px;
-        margin-bottom: 0.5rem;
-    }
-    .notice-box {
-        font-size: 0.82rem;
-        color: #64748b;
-        margin-bottom: 1.2rem;
-        line-height: 1.5;
-    }
-    .notice-box a {
-        color: #0284c7;
-        text-decoration: underline;
-    }
-    .stButton>button {
-        width: 100%;
-        border-radius: 6px;
-        height: 3.2rem;
-        font-weight: 700;
-        font-size: 1.05rem;
-        background-color: #2563eb;
-        color: #ffffff !important;
-        border: none;
-        transition: all 0.2s ease;
-    }
-    .stButton>button:hover {
-        background-color: #1d4ed8;
-    }
-    .footer-container {
-        margin-top: 3.5rem;
-        padding-top: 1.5rem;
-        border-top: 1px solid rgba(150, 150, 150, 0.2);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 1rem;
-    }
-    .footer-text {
-        font-size: 0.82rem;
-        opacity: 0.75;
-    }
-    .footer-link {
-        font-size: 0.85rem;
-        font-weight: 500;
-        color: #38bdf8;
-        text-decoration: none;
-    }
-    .footer-link:hover {
-        text-decoration: underline;
-    }
+    html, body, [class*="css"] { font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif; }
+    .block-container { padding-top: 2.5rem; padding-bottom: 3rem; max-width: 820px; }
+    .header-box { border-bottom: 2px solid var(--text-color, #0f172a); padding-bottom: 1rem; margin-bottom: 2rem; }
+    .header-title { font-size: 1.8rem; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 0.3rem; }
+    .header-sub { font-size: 0.9rem; opacity: 0.8; }
+    div[data-testid="stFileUploader"] { border: 1px solid rgba(150, 150, 150, 0.3); border-radius: 6px; padding: 12px; margin-bottom: 0.5rem; }
+    .notice-box { font-size: 0.82rem; color: #64748b; margin-bottom: 1.2rem; line-height: 1.5; }
+    .notice-box a { color: #0284c7; text-decoration: underline; }
+    .stButton>button { width: 100%; border-radius: 6px; height: 3.2rem; font-weight: 700; font-size: 1.05rem; background-color: #2563eb; color: #ffffff !important; border: none; transition: all 0.2s ease; }
+    .stButton>button:hover { background-color: #1d4ed8; }
+    .footer-container { margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid rgba(150, 150, 150, 0.2); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
+    .footer-text { font-size: 0.82rem; opacity: 0.75; }
+    .footer-link { font-size: 0.85rem; font-weight: 500; color: #38bdf8; text-decoration: none; }
+    .footer-link:hover { text-decoration: underline; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -153,6 +90,8 @@ def get_q_width_mm(q):
     elif q.q_type in ["lined_box", "free_box"]:
         lines = q.line_count or 2
         w = lines * 11.5
+    elif q.q_type == "graph_box":
+        w = 120.0
     else:
         w = 20.0
     return max(w, 15.0) + base_gap
@@ -190,90 +129,64 @@ You are a highly precise typesetter for Japanese entrance exams. Read ONLY the "
 Mentally solve the question first to determine the box type and size.
 ZERO HALLUCINATION: NEVER invent questions or options (like ア, イ) not explicitly written.
 
-1. EXACT CHAR COUNT (e.g., "二字で抜き出せ", "四字で答えよ"):
-   Use `q_type="exact_word_fill"`, set `chars_limit` to the exact number (e.g., 2, 4), and `symbols` to labels (e.g., ["A", "B"]).
-2. KANJI/KANA:
-   Use `q_type="word_fill"`, set `symbols` to exact labels (e.g., ["ア", "イ", "ウ"]).
-3. DESCRIPTION (e.g., "説明せよ"):
-   If "○字以内", use `q_type="char_grid"`, set `chars_limit`.
-   If no limit, use `q_type="free_box"`, estimate `line_count` (2 to 4).
+1. EXACT CHAR COUNT: Use `q_type="exact_word_fill"`, set `chars_limit`, and `symbols` to labels (e.g., ["A", "B"]).
+2. KANJI/KANA: Use `q_type="word_fill"`, set `symbols`.
+3. DESCRIPTION: If "○字以内", use `q_type="char_grid"`, set `chars_limit`. If no limit, use `q_type="free_box"`, estimate `line_count` (2 to 4).
 4. MULTIPLE CHOICE: Use `q_type="table_fill"`, set `symbols`.
-5. DO NOT guess `university` or `year`. Set `instruction`="".
 """
             elif selected_subject == "英語":
                 prompt = """
-You are an expert English entrance exam typesetter. Mentally solve questions to estimate required space.
-ZERO HALLUCINATION: Do not invent questions.
+You are an expert English entrance exam typesetter. Mentally solve questions to estimate required space. ZERO HALLUCINATION.
 
 1. MULTIPLE CHOICE (e.g., Q1-Q5): Use `q_type="table_fill"`, set `symbols`.
-2. WORD ORDERING (並び替え): Use `q_type="reorder"`, set `targets` (e.g., ["3rd", "5th"]).
-3. SHORT ANSWER/FILL-IN-BLANK: Use `q_type="word_fill"`, set `symbols`.
-4. TRANSLATION/EXPLANATION (和訳・説明):
-   If character limit exists, use `q_type="char_grid"`.
-   If no limit, use `q_type="lined_box"` and estimate `line_count` (3 to 6).
-5. FREE ESSAY (自由英作文): Use `q_type="lined_box"`, estimate `line_count` (8 to 12).
-6. DO NOT guess `university` or `year`. Set `instruction`="".
+2. WORD ORDERING: Use `q_type="reorder"`, set `targets` (e.g., ["3rd", "5th"]).
+3. SHORT ANSWER: Use `q_type="word_fill"`, set `symbols`.
+4. TRANSLATION/EXPLANATION: If character limit exists, use `q_type="char_grid"`. If no limit, use `q_type="lined_box"` and estimate `line_count` (3 to 6).
+5. FREE ESSAY: Use `q_type="lined_box"`, estimate `line_count` (8 to 12).
 """
             elif selected_subject == "数学":
                 prompt = """
 You are a Math exam typesetter.
 Extract ONLY the main question numbers (e.g., 第1問, 第2問).
-DO NOT extract sub-questions like (1), (2).
-For each main section, output exactly ONE question with `q_number="解答欄"`, `q_type="math_box"`.
-DO NOT guess `university` or `year`. Set `instruction`="".
+For questions asking to draw a graph or figure (図示せよ, グラフを描け), use `q_type="graph_box"`.
+Otherwise, output exactly ONE question per section with `q_number="解答欄"`, `q_type="math_box"`.
 """
             elif selected_subject == "地歴・社会":
                 prompt = """
-You are a History/Geography exam typesetter. Mentally solve questions to estimate space.
-ZERO HALLUCINATION.
+You are a History/Geography exam typesetter. Mentally solve questions to estimate space. ZERO HALLUCINATION.
 
 1. SHORT TERMS/BLANKS: Use `q_type="word_fill"`, set `symbols`.
 2. MULTIPLE CHOICE: Use `q_type="table_fill"`, set `symbols`.
-3. ESSAY/DESCRIPTION (論述):
-   If character limit exists (e.g., "400字"), use `q_type="char_grid"`, set `chars_limit`.
-   If no limit (short description), use `q_type="lined_box"`, estimate `line_count` (2 to 4).
-4. DO NOT guess `university` or `year`. Set `instruction`="".
+3. ESSAY/DESCRIPTION: If character limit exists, use `q_type="char_grid"`, set `chars_limit`. If no limit, use `q_type="lined_box"`, estimate `line_count` (2 to 8).
+4. DRAWING/MAPS: If it asks to draw, use `q_type="graph_box"`.
 """
             elif selected_subject == "理科":
                 prompt_base = """You are an expert typesetter for Science university entrance exams.
 Read the exam questions carefully and extract the EXACT question structure.
-
 [CRITICAL RULE: ZERO OMISSION]
 - You MUST extract EVERY explicitly numbered question and sub-question found in the text (e.g., 問1, 問2, (1), (2), (a), (b)).
-- Do NOT merge distinct sub-questions together. If the PDF has 問1 (a) and (b), output two separate objects.
-- Do NOT skip any questions.
-- Set `instruction` to "". Do NOT guess university or year.
+- Do NOT merge distinct sub-questions together. Do NOT skip any questions.
 """
-                # ★ボタンとAIのプロンプトを完全に連動
                 if "記述メイン" in science_layout:
                     prompt = prompt_base + """
-[DESCRIPTIVE EXAM RULES (National Universities / e.g. Tsukuba, Tokyo)]
-1. ALMOST EVERYTHING IS A MATH/CALCULATION BOX:
-   - For physics/chemistry derivations, process, or equations, default to `q_type="math_box"`.
-2. TEXT DESCRIPTIONS:
-   - "○字以内で": `q_type="char_grid"`, set `chars_limit`.
-   - Explanations without limit: `q_type="lined_box"`, `line_count=3`.
-3. SHORT ANSWERS:
-   - Even simple answers need a blank space in descriptive exams. Use `q_type="free_box"`.
-4. DO NOT use `table_fill` or `word_fill` unless it's explicitly a massive data table.
-5. SELECTIVE SECTIONS: Generate BOTH selective sections (e.g., Section 4 and Section 5).
+[DESCRIPTIVE EXAM RULES]
+1. MATH/CALCULATION BOX: For derivations, default to `q_type="math_box"`.
+2. TEXT DESCRIPTIONS: "○字以内で": `q_type="char_grid"`, set `chars_limit`. Without limit: `q_type="lined_box"`, `line_count=3`.
+3. DRAWING/GRAPHS: "図示せよ", "グラフを描け": Use `q_type="graph_box"`.
+4. SHORT ANSWERS: Use `q_type="free_box"`.
+5. SELECTIVE SECTIONS: Generate BOTH selective sections.
 """
                 else:
                     prompt = prompt_base + """
-[MOCK EXAM RULES (Symbols & Short Values / e.g. Sundai-Benesse)]
-1. SINGLE ANSWER MULTIPLE CHOICE (記号・番号選択):
-   - "一つ選び、番号で答えよ", "記号で選べ": Output EXACTLY ONE answer box with `q_type="table_fill"`. Do NOT create sub-boxes for the options themselves!
-2. NUMERICAL QUESTIONS (数値・有効数字):
-   - "有効数字○桁で答えよ", "整数で": Use `q_type="word_fill"` with `symbols=None`.
-3. MULTIPLE BLANKS:
-   - "空欄エ・オに...": Set `symbols=["エ", "オ"]`, `q_type="word_fill"`.
-4. TEXT DESCRIPTIONS & FORMULAS:
-   - "○字以内で": `q_type="char_grid"`, set `chars_limit`.
-   - Formula: `q_type="lined_box"`.
-5. SELECTIVE SECTIONS: Generate BOTH selective sections.
+[MOCK EXAM RULES]
+1. SINGLE ANSWER MULTIPLE CHOICE: "一つ選び、番号で答えよ": Output EXACTLY ONE answer box with `q_type="table_fill"`. Do NOT create sub-boxes for the options!
+2. NUMERICAL QUESTIONS: "有効数字○桁で答えよ": Use `q_type="word_fill"` with `symbols=None`.
+3. MULTIPLE BLANKS: "空欄エ・オに...": Set `symbols=["エ", "オ"]`, `q_type="word_fill"`.
+4. DRAWING/GRAPHS: "図示せよ", "グラフを描け": Use `q_type="graph_box"`.
+5. TEXT DESCRIPTIONS & FORMULAS: "○字以内で": `q_type="char_grid"`, set `chars_limit`. Formula: `q_type="lined_box"`.
 """
             else:
-                prompt = "Extract questions. Mentally solve them. Set instruction to empty string."
+                prompt = "Extract questions. Set instruction to empty string."
 
             max_retries = 3
             response = None
@@ -367,9 +280,9 @@ Read the exam questions carefully and extract the EXACT question structure.
 
                         for q in reversed(chunk):
                             lines.append("        rect(")
-                            lines.append("          stroke: 0.8pt + luma(80),")
+                            lines.append("          stroke: 0.8pt + luma(40),")
                             lines.append("          inset: 12pt,")
-                            lines.append("          radius: 4pt,")
+                            lines.append("          radius: 0pt,")
                             lines.append("          fill: white,")
                             lines.append("          block(breakable: false)[")
                             lines.append(f'            #align(center)[#text(weight: "bold", size: 10pt)[【{q.q_number}】]]')
@@ -404,11 +317,11 @@ Read the exam questions carefully and extract the EXACT question structure.
 
                         lines.extend([
                             "  [",
-                            "    #rect(width: 100%, height: 100%, stroke: 0.8pt + luma(60), fill: white, inset: 0pt)[",
+                            "    #rect(width: 100%, height: 100%, stroke: 0.8pt + luma(40), fill: white, inset: 0pt)[",
                             "      #grid(",
                             "        columns: (100%,),",
                             "        rows: (35pt, 28pt, 55pt, 55pt, 22pt, 65pt, 22pt, 75pt, 22pt, 1fr),",
-                            '        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: luma(245))[#align(center + horizon)[#text(size: 11pt, weight: "bold")[国語 解答用紙]]],',
+                            '        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: white)[#align(center + horizon)[#text(size: 11pt, weight: "bold")[国語 解答用紙]]],',
                             f'        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: white)[#align(center + horizon)[#text(size: 9.5pt, weight: "bold")[【{sec.big_number}】{page_label}]]],',
                             f'        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: white)[',
                             '          #align(left + top)[',
@@ -424,11 +337,11 @@ Read the exam questions carefully and extract the EXACT question structure.
                             f'            #align(center)[#text(size: 10pt, weight: "bold")[{year_display}] #if "{year_display}" == "" [#box(width: 85%, stroke: (bottom: 0.5pt))[]]]',
                             '          ]',
                             '        ],',
-                            '        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: luma(245))[#align(center + horizon)[#text(size: 9pt)[受験番号]]],',
+                            '        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: white)[#align(center + horizon)[#text(size: 9pt)[受験番号]]],',
                             '        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: white)[],',
-                            '        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: luma(245))[#align(center + horizon)[#text(size: 9pt)[氏名]]],',
+                            '        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: white)[#align(center + horizon)[#text(size: 9pt)[氏名]]],',
                             '        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: white)[],',
-                            '        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: luma(235))[#align(center + horizon)[#text(size: 9pt)[※得点]]],',
+                            '        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: white)[#align(center + horizon)[#text(size: 9pt)[※得点]]],',
                             '        rect(width: 100%, height: 100%, stroke: none, fill: white)[]',
                             "      )",
                             "    ]",
@@ -447,20 +360,21 @@ Read the exam questions carefully and extract the EXACT question structure.
                         "  gutter: 12pt,",
                         "  align: (left + top, right + top),",
                         f'  text(size: 13pt, weight: "bold")[{year_display} {univ_display} 数学 解答用紙 【{sec.big_number}】],',
-                        '  table(columns: (45pt, 70pt, 35pt, 90pt, 45pt), rows: (16pt, 24pt), align: center + horizon, stroke: 0.5pt, table.cell(fill: luma(245))[受験番号], table.cell(rowspan: 2, fill: white)[], table.cell(fill: luma(245))[氏名], table.cell(rowspan: 2, fill: white)[], table.cell(fill: luma(235))[※得点], table.cell(fill: white)[])',
+                        '  table(columns: (45pt, 70pt, 35pt, 90pt, 45pt), rows: (16pt, 24pt), align: center + horizon, stroke: 0.6pt + luma(40), table.cell(fill: white)[受験番号], table.cell(rowspan: 2, fill: white)[], table.cell(fill: white)[氏名], table.cell(rowspan: 2, fill: white)[], table.cell(fill: white)[※得点], table.cell(fill: white)[])',
                         ")",
                         "#v(5pt)",
-                        "#line(length: 100%, stroke: 1.2pt)",
+                        "#line(length: 100%, stroke: 1.2pt + luma(40))",
                         "#v(10pt)",
-                        "#math-calc-box(height-pt: 480pt, divided: true)",
-                        ""
                     ])
+                    for q in questions:
+                        if q.q_type == "graph_box":
+                            lines.append("  #graph-box(height-pt: 200pt)")
+                        else:
+                            lines.append("  #math-calc-box(height-pt: 450pt, divided: true)")
+                    lines.append("")
 
                 elif selected_subject == "理科":
                     if "記述メイン" in science_layout:
-                        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                        # 【レイアウトA】記述メイン（国公立・難関大風）：巨大な2列グリッド
-                        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                         sheet_count += 1
                         if sheet_count > 1:
                             lines.append("#pagebreak()")
@@ -470,14 +384,13 @@ Read the exam questions carefully and extract the EXACT question structure.
                             "  gutter: 12pt,",
                             "  align: (left + top, right + top),",
                             f'  text(size: 13pt, weight: "bold")[{year_display} {univ_display} 理科 解答用紙 【{sec.big_number}】],',
-                            '  table(columns: (45pt, 70pt, 35pt, 90pt, 45pt), rows: (16pt, 24pt), align: center + horizon, stroke: 0.5pt, table.cell(fill: luma(245))[受験番号], table.cell(rowspan: 2, fill: white)[], table.cell(fill: luma(245))[氏名], table.cell(rowspan: 2, fill: white)[], table.cell(fill: luma(235))[※得点], table.cell(fill: white)[])',
+                            '  table(columns: (45pt, 70pt, 35pt, 90pt, 45pt), rows: (16pt, 24pt), align: center + horizon, stroke: 0.6pt + luma(40), table.cell(fill: white)[受験番号], table.cell(rowspan: 2, fill: white)[], table.cell(fill: white)[氏名], table.cell(rowspan: 2, fill: white)[], table.cell(fill: white)[※得点], table.cell(fill: white)[])',
                             ")",
                             "#v(5pt)",
-                            "#line(length: 100%, stroke: 1.2pt)",
+                            "#line(length: 100%, stroke: 1.2pt + luma(40))",
                             "#v(10pt)",
                         ])
                         
-                        # 用紙幅を2等分（1fr, 1fr）し、筑波大のような広大な枠を敷き詰める
                         lines.append("#grid(")
                         lines.append("  columns: (1fr, 1fr),")
                         lines.append("  gutter: 16pt,")
@@ -489,11 +402,14 @@ Read the exam questions carefully and extract the EXACT question structure.
                             body_code = "none"
                             note_str = ""
                             
-                            # 記述式では全ての枠を巨大化
                             if q.q_type == "math_box":
                                 span = 1
                                 h = "220pt"
-                                body_code = "[#align(top + left)[#v(4pt)#h(4pt)#text(size: 8pt, fill: luma(120))[【計算過程・理由等】]]]"
+                                body_code = "[#align(top + left)[#v(4pt)#h(4pt)#text(size: 8pt, fill: luma(80))[【計算過程・理由等】]]]"
+                            elif q.q_type == "graph_box":
+                                span = 1
+                                h = "220pt"
+                                body_code = "[#graph-box(height-pt: 190pt)]"
                             elif q.q_type == "char_grid":
                                 span = 2
                                 h = "auto"
@@ -507,7 +423,7 @@ Read the exam questions carefully and extract the EXACT question structure.
                                 body_code = f"[#lined-box(lines: {ln})]"
                             else:
                                 span = 1
-                                h = "100pt"  # 短答でも記述試験では広めに取る
+                                h = "100pt"
                                 
                             if col_index % 2 + span > 2:
                                 lines.append("  [],")
@@ -525,9 +441,6 @@ Read the exam questions carefully and extract the EXACT question structure.
                         lines.append("")
                         
                     else:
-                        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                        # 【レイアウトB】記号・短答メイン（模試風）：ゆとりある4列グリッド
-                        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                         if sec_idx % 2 == 0:
                             sheet_count += 1
                             if sheet_count > 1:
@@ -538,17 +451,18 @@ Read the exam questions carefully and extract the EXACT question structure.
                                 "  gutter: 12pt,",
                                 "  align: (left + top, right + top),",
                                 f'  text(size: 13pt, weight: "bold")[{year_display} {univ_display} 理科 解答用紙],',
-                                '  table(columns: (45pt, 70pt, 35pt, 90pt, 45pt), rows: (16pt, 24pt), align: center + horizon, stroke: 0.5pt, table.cell(fill: luma(245))[受験番号], table.cell(rowspan: 2, fill: white)[], table.cell(fill: luma(245))[氏名], table.cell(rowspan: 2, fill: white)[], table.cell(fill: luma(235))[※得点], table.cell(fill: white)[])',
+                                '  table(columns: (45pt, 70pt, 35pt, 90pt, 45pt), rows: (16pt, 24pt), align: center + horizon, stroke: 0.6pt + luma(40), table.cell(fill: white)[受験番号], table.cell(rowspan: 2, fill: white)[], table.cell(fill: white)[氏名], table.cell(rowspan: 2, fill: white)[], table.cell(fill: white)[※得点], table.cell(fill: white)[])',
                                 ")",
                                 "#v(4pt)",
-                                "#line(length: 100%, stroke: 1.2pt)",
+                                "#line(length: 100%, stroke: 1.2pt + luma(40))",
                                 "#v(6pt)",
                             ])
                         else:
                             lines.append("#v(14pt)")
 
                         sec_title = f"【{sec.big_number}】"
-                        lines.append(f'#rect(width: 100%, fill: luma(225), stroke: none, inset: 6pt, radius: 4pt)[#text(weight: "bold", size: 11pt, fill: luma(10))[#h(4pt){sec_title}]]')
+                        # 大問見出しもグレー帯を廃止し、本番用紙らしい白地＋黒枠に統一
+                        lines.append(f'#rect(width: 100%, fill: white, stroke: 0.8pt + luma(40), inset: 6pt)[#text(weight: "bold", size: 11pt)[#h(4pt){sec_title}]]')
                         lines.append("#v(10pt)")
 
                         lines.append("#grid(")
@@ -565,7 +479,11 @@ Read the exam questions carefully and extract the EXACT question structure.
                             if q.q_type == "math_box":
                                 span = 4
                                 h = "140pt"
-                                body_code = "[#align(top + left)[#v(4pt)#h(4pt)#text(size: 8pt, fill: luma(120))[【計算過程・理由等】]]]"
+                                body_code = "[#align(top + left)[#v(4pt)#h(4pt)#text(size: 8pt, fill: luma(80))[【計算過程・理由等】]]]"
+                            elif q.q_type == "graph_box":
+                                span = 2
+                                h = "140pt"
+                                body_code = "[#graph-box(height-pt: 120pt)]"
                             elif q.q_type == "char_grid":
                                 span = 4
                                 h = "auto"
@@ -625,10 +543,10 @@ Read the exam questions carefully and extract the EXACT question structure.
                         "  gutter: 12pt,",
                         "  align: (left + top, right + top),",
                         f'  text(size: 13pt, weight: "bold")[{year_display} {univ_display} {exam.subject} 解答用紙 【{sec.big_number}】],',
-                        '  table(columns: (45pt, 70pt, 35pt, 90pt, 45pt), rows: (16pt, 24pt), align: center + horizon, stroke: 0.5pt, table.cell(fill: luma(245))[受験番号], table.cell(rowspan: 2, fill: white)[], table.cell(fill: luma(245))[氏名], table.cell(rowspan: 2, fill: white)[], table.cell(fill: luma(235))[※得点], table.cell(fill: white)[])',
+                        '  table(columns: (45pt, 70pt, 35pt, 90pt, 45pt), rows: (16pt, 24pt), align: center + horizon, stroke: 0.6pt + luma(40), table.cell(fill: white)[受験番号], table.cell(rowspan: 2, fill: white)[], table.cell(fill: white)[氏名], table.cell(rowspan: 2, fill: white)[], table.cell(fill: white)[※得点], table.cell(fill: white)[])',
                         ")",
                         "#v(5pt)",
-                        "#line(length: 100%, stroke: 1.2pt)",
+                        "#line(length: 100%, stroke: 1.2pt + luma(40))",
                         "#v(10pt)",
                         "#columns(2, gutter: 16mm)[",
                     ])
@@ -639,6 +557,8 @@ Read the exam questions carefully and extract the EXACT question structure.
                         if q.q_type == "char_grid":
                             c = q.chars_limit or 100
                             lines.append(f"    #char-grid(chars: {c})")
+                        elif q.q_type == "graph_box":
+                            lines.append("    #graph-box(height-pt: 160pt)")
                         elif q.q_type == "exact_word_fill":
                             symbols = q.symbols or [""]
                             arr = ", ".join([f'"{s}"' for s in symbols])
