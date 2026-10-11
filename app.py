@@ -160,8 +160,10 @@ Mentally solve the question first to determine the box type and size. ZERO HALLU
                 prompt = """
 You are an expert English entrance exam typesetter. Mentally solve questions to estimate required space. ZERO HALLUCINATION.
 
-1. MULTIPLE CHOICE (e.g., Q1-Q5): Use `q_type="table_fill"`, set `symbols`.
-2. WORD ORDERING: Use `q_type="reorder"`, set `targets` (e.g., ["3rd", "5th"]).
+1. MULTIPLE CHOICE / LISTENING (記号選択・リスニング):
+   - For single-answer multiple choice questions (e.g. Q7-Q21 listening, Q22-Q26 error correction):
+     Set `q_type="table_fill"`. Do NOT put the options (a, b, c, d, e) inside symbols! Just set `symbols=None`.
+2. WORD ORDERING (並べ替え): Use `q_type="reorder"`.
 3. SHORT ANSWER: Use `q_type="word_fill"`, set `symbols`.
 4. TRANSLATION/EXPLANATION: If character limit exists, use `q_type="char_grid"`. If no limit, use `q_type="lined_box"` and estimate `line_count` (3 to 6).
 5. FREE ESSAY: Use `q_type="lined_box"`, estimate `line_count` (8 to 12).
@@ -178,7 +180,7 @@ Otherwise, output exactly ONE question per section with `q_number="解答欄"`, 
 You are an expert typesetter for University Entrance Exams in History, Geography, and Civics.
 Mentally solve and construct the standard model answer for each question first to estimate space accurately. ZERO HALLUCINATION.
 
-1. ESSAYS & DESCRIPTIONS: If character limit exists, use `q_type="char_grid"`, set `chars_limit`. If no limit, use `q_type="lined_box"` and estimate `line_count` (2 to 8 lines).
+1. ESSAYS & DESCRIPTIONS: If character limit exists, use `q_type="char_grid"`, set `chars_limit`. If no limit, use `q_type="lined_box"`, estimate `line_count` (2 to 8 lines).
 2. SHORT TERMS & IDENTIFICATION: Use `q_type="word_fill"`, set `symbols`.
 3. MULTIPLE CHOICE: Use `q_type="table_fill"`, set `symbols`.
 4. DRAWING / MAP ANNOTATION: Use `q_type="graph_box"`.
@@ -423,9 +425,9 @@ Read the exam questions carefully and extract the EXACT question structure. ZERO
                                 "      )",
                                 "    ]",
                                 "  ]",
-                                ")",
-                                ""
-                            ])
+                            ")",
+                            ""
+                        ])
 
                     elif selected_subject == "数学":
                         sheet_count += 1
@@ -612,6 +614,7 @@ Read the exam questions carefully and extract the EXACT question structure. ZERO
                             lines.append(")")
                             lines.append("")
 
+                    # 英語・地歴社会
                     else:
                         sheet_count += 1
                         if sheet_count > 1:
@@ -627,37 +630,62 @@ Read the exam questions carefully and extract the EXACT question structure. ZERO
                             "#v(5pt)",
                             "#line(length: 100%, stroke: 1.2pt + luma(40))",
                             "#v(10pt)",
-                            "#columns(2, gutter: 16mm)[",
                         ])
+
+                        # 連続する table_fill（記号選択・リスニング）をまとめてコンパクトな横並び枠にする
+                        grouped_items = []
+                        current_choice_group = []
+
                         for q in questions:
-                            lines.append("  #block(breakable: false)[")
-                            lines.append(f'    #text(weight: "bold", size: 10pt)[【{q.q_number}】]')
-                            lines.append("    #v(3pt)")
-                            if q.q_type == "char_grid":
-                                c = q.chars_limit or 100
-                                lines.append(f"    #char-grid(chars: {c})")
-                            elif q.q_type == "graph_box":
-                                lines.append("    #graph-box(height-pt: 160pt)")
-                            elif q.q_type == "exact_word_fill":
-                                symbols = q.symbols or [""]
-                                arr = ", ".join([f'"{s}"' for s in symbols])
-                                c = q.chars_limit or 4
-                                lines.append(f"    #exact-char-box(symbols: ({arr},), chars: {c})")
-                            elif q.q_type in ["lined_box", "free_box"]:
-                                ln = q.line_count or 4
-                                lines.append(f"    #lined-box(lines: {ln})")
-                            elif q.q_type == "reorder":
-                                lines.append("    #reorder-box()")
-                            elif q.q_type == "table_fill":
-                                symbols = q.symbols or ["(1)", "(2)", "(3)", "(4)"]
-                                arr = ", ".join([f'"{s}"' for s in symbols])
-                                lines.append(f"    #symbol-table(symbols: ({arr},))")
-                            elif q.q_type == "word_fill":
-                                symbols = q.symbols or ["(1)", "(2)"]
-                                arr = ", ".join([f'"{s}"' for s in symbols])
-                                lines.append(f"    #word-box(symbols: ({arr},))")
-                            lines.append("    #v(12pt)")
-                            lines.append("  ]")
+                            if q.q_type == "table_fill" and (not q.symbols or len(q.symbols) <= 1):
+                                current_choice_group.append(q.q_number)
+                            else:
+                                if current_choice_group:
+                                    grouped_items.append(("choice_group", current_choice_group))
+                                    current_choice_group = []
+                                grouped_items.append(("single", q))
+                        if current_choice_group:
+                            grouped_items.append(("choice_group", current_choice_group))
+
+                        lines.append("#columns(2, gutter: 16mm)[")
+                        for item in grouped_items:
+                            if item[0] == "choice_group":
+                                group_labels = item[1]
+                                arr_str = ", ".join([f'"{lbl}"' for lbl in group_labels])
+                                lines.append("  #block(breakable: false)[")
+                                lines.append(f'    #compact-symbol-grid(items: ({arr_str},))')
+                                lines.append("    #v(10pt)")
+                                lines.append("  ]")
+                            else:
+                                q = item[1]
+                                lines.append("  #block(breakable: false)[")
+                                lines.append(f'    #text(weight: "bold", size: 10pt)[【{q.q_number}】]')
+                                lines.append("    #v(3pt)")
+                                if q.q_type == "char_grid":
+                                    c = q.chars_limit or 100
+                                    lines.append(f"    #char-grid(chars: {c})")
+                                elif q.q_type == "graph_box":
+                                    lines.append("    #graph-box(height-pt: 160pt)")
+                                elif q.q_type == "exact_word_fill":
+                                    symbols = q.symbols or [""]
+                                    arr = ", ".join([f'"{s}"' for s in symbols])
+                                    c = q.chars_limit or 4
+                                    lines.append(f"    #exact-char-box(symbols: ({arr},), chars: {c})")
+                                elif q.q_type in ["lined_box", "free_box"]:
+                                    ln = q.line_count or 4
+                                    lines.append(f"    #lined-box(lines: {ln})")
+                                elif q.q_type == "reorder":
+                                    lines.append("    #reorder-box()")
+                                elif q.q_type == "table_fill":
+                                    symbols = q.symbols or ["(1)", "(2)", "(3)", "(4)"]
+                                    arr = ", ".join([f'"{s}"' for s in symbols])
+                                    lines.append(f"    #symbol-table(symbols: ({arr},))")
+                                elif q.q_type == "word_fill":
+                                    symbols = q.symbols or ["(1)", "(2)"]
+                                    arr = ", ".join([f'"{s}"' for s in symbols])
+                                    lines.append(f"    #word-box(symbols: ({arr},))")
+                                lines.append("    #v(12pt)")
+                                lines.append("  ]")
                         lines.append("]")
                         lines.append("")
 

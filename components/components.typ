@@ -219,7 +219,6 @@
   )
 }
 
-// 矢印で数字を書き込める並べ替え枠
 #let reorder-box(targets: (), count: 6) = {
   let total = calc.max(count, 6)
   let cells = ()
@@ -242,6 +241,35 @@
     dir: ltr,
     spacing: 4pt,
     ..cells
+  )
+}
+
+// ★コンパクトな記号記入枠（リスニング・単一記号選択用）
+#let compact-symbol-grid(items: ()) = {
+  let count = items.len()
+  let cols-per-row = calc.min(count, 6)
+  if cols-per-row == 0 { cols-per-row = 1 }
+  let rows-count = calc.ceil(count / cols-per-row)
+  
+  stack(
+    spacing: 4pt,
+    ..range(rows-count).map(r => {
+      let start = r * cols-per-row
+      let end = calc.min(count, start + cols-per-row)
+      let sub-items = items.slice(start, end)
+      let fill-count = cols-per-row - sub-items.len()
+      
+      table(
+        columns: range(cols-per-row).map(_ => 1fr),
+        rows: (18pt, 24pt),
+        align: center + horizon,
+        stroke: 0.5pt + luma(60),
+        ..sub-items.map(it => table.cell(fill: white)[#text(weight: "bold", size: 8.5pt)[#it]]),
+        ..range(fill-count).map(_ => table.cell(stroke: none)[]),
+        ..range(sub-items.len()).map(_ => table.cell(fill: white)[]),
+        ..range(fill-count).map(_ => table.cell(stroke: none)[])
+      )
+    })
   )
 }
 
