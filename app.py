@@ -57,11 +57,12 @@ exam_format = st.radio(
     horizontal=True
 )
 
+# 記述メインを左側に配置
 science_layout = ""
 if selected_subject == "理科" and exam_format == "記述・論述式":
     science_layout = st.radio(
         "💡 理科のレイアウト設定",
-        options=["記号・短答メイン（模試風）", "記述メイン（国公立・難関大風）"],
+        options=["記述メイン（国公立・難関大風）", "記号・短答メイン（模試風）"],
         horizontal=True
     )
 
@@ -178,7 +179,7 @@ Otherwise, output exactly ONE question per section with `q_number="解答欄"`, 
 You are an expert typesetter for University Entrance Exams in History, Geography, and Civics.
 Mentally solve and construct the standard model answer for each question first to estimate space accurately. ZERO HALLUCINATION.
 
-1. ESSAYS & DESCRIPTIONS: If character limit exists, use `q_type="char_grid"`, set `chars_limit`. If no limit, use `q_type="lined_box"` and estimate `line_count` (2 to 8 lines).
+1. ESSAYS & DESCRIPTIONS: If character limit exists, use `q_type="char_grid"`, set `chars_limit`. If no limit, use `q_type="lined_box"`, estimate `line_count` (2 to 8 lines).
 2. SHORT TERMS & IDENTIFICATION: Use `q_type="word_fill"`, set `symbols`.
 3. MULTIPLE CHOICE: Use `q_type="table_fill"`, set `symbols`.
 4. DRAWING / MAP ANNOTATION: Use `q_type="graph_box"`.
@@ -255,7 +256,7 @@ Read the exam questions carefully and extract the EXACT question structure. ZERO
                 '  flipped: true,',
                 '  margin: (x: 14mm, top: 12mm, bottom: 12mm)',
                 ')',
-                '#set text(font: ("Noto Serif CJK JP", "Noto Sans CJK JP", "IPAexGothic", "IPAGothic"), lang: "ja", size: 9.5pt)',
+                '#set text(font: ("Noto Serif CJP JP", "Noto Serif CJK JP", "Noto Sans CJK JP", "IPAexGothic", "IPAGothic"), lang: "ja", size: 9.5pt)',
                 "",
             ]
 
@@ -339,93 +340,93 @@ Read the exam questions carefully and extract the EXACT question structure. ZERO
                         if current_chunk:
                             chunks.append(current_chunk)
 
-                        for c_idx, chunk in enumerate(chunks):
-                            sheet_count += 1
-                            if sheet_count > 1:
-                                lines.append("#pagebreak()")
+                    for c_idx, chunk in enumerate(chunks):
+                        sheet_count += 1
+                        if sheet_count > 1:
+                            lines.append("#pagebreak()")
 
-                            page_label = f"({c_idx + 1}/{len(chunks)})" if len(chunks) > 1 else ""
+                        page_label = f"({c_idx + 1}/{len(chunks)})" if len(chunks) > 1 else ""
 
-                            lines.append("#grid(")
-                            lines.append("  columns: (1fr, 36mm),")
-                            lines.append("  gutter: 14mm,")
-                            lines.append("  [")
-                            lines.append("    #align(right)[")
-                            lines.append("      #stack(")
-                            lines.append("        dir: ltr,")
-                            lines.append("        spacing: 9mm,")
+                        lines.append("#grid(")
+                        lines.append("  columns: (1fr, 36mm),")
+                        lines.append("  gutter: 14mm,")
+                        lines.append("  [")
+                        lines.append("    #align(right)[")
+                        lines.append("      #stack(")
+                        lines.append("        dir: ltr,")
+                        lines.append("        spacing: 9mm,")
 
-                            for q in reversed(chunk):
-                                lines.append("        rect(")
-                                lines.append("          stroke: 0.8pt + luma(40),")
-                                lines.append("          inset: 12pt,")
-                                lines.append("          radius: 0pt,")
-                                lines.append("          fill: white,")
-                                lines.append("          block(breakable: false)[")
-                                lines.append(f'            #align(center)[#text(weight: "bold", size: 10pt)[【{q.q_number}】]]')
-                                lines.append("            #v(8pt)")
+                        for q in reversed(chunk):
+                            lines.append("        rect(")
+                            lines.append("          stroke: 0.8pt + luma(40),")
+                            lines.append("          inset: 12pt,")
+                            lines.append("          radius: 0pt,")
+                            lines.append("          fill: white,")
+                            lines.append("          block(breakable: false)[")
+                            lines.append(f'            #align(center)[#text(weight: "bold", size: 10pt)[【{q.q_number}】]]')
+                            lines.append("            #v(8pt)")
 
-                                if q.q_type == "char_grid":
-                                    c = q.chars_limit or 60
-                                    lines.append(f"            #vertical-grid(chars: {c})")
-                                elif q.q_type == "exact_word_fill":
-                                    symbols = q.symbols or [""]
-                                    arr = ", ".join([f'"{s}"' for s in symbols])
-                                    c = q.chars_limit or 4
-                                    lines.append(f"            #exact-char-box(symbols: ({arr},), chars: {c})")
-                                elif q.q_type == "word_fill":
-                                    symbols = q.symbols or ["ア", "イ", "ウ", "エ", "オ"]
-                                    arr = ", ".join([f'"{s}"' for s in symbols])
-                                    lines.append(f"            #vertical-kanji-box(symbols: ({arr},))")
-                                elif q.q_type == "table_fill":
-                                    symbols = q.symbols or ["(1)", "(2)"]
-                                    arr = ", ".join([f'"{s}"' for s in symbols])
-                                    lines.append(f"            #vertical-symbol-box(symbols: ({arr},))")
-                                else:
-                                    ln = q.line_count or 2
-                                    lines.append(f"            #vertical-free-box(columns-count: {ln})")
+                            if q.q_type == "char_grid":
+                                c = q.chars_limit or 60
+                                lines.append(f"            #vertical-grid(chars: {c})")
+                            elif q.q_type == "exact_word_fill":
+                                symbols = q.symbols or [""]
+                                arr = ", ".join([f'"{s}"' for s in symbols])
+                                c = q.chars_limit or 4
+                                lines.append(f"            #exact-char-box(symbols: ({arr},), chars: {c})")
+                            elif q.q_type == "word_fill":
+                                symbols = q.symbols or ["ア", "イ", "ウ", "エ", "オ"]
+                                arr = ", ".join([f'"{s}"' for s in symbols])
+                                lines.append(f"            #vertical-kanji-box(symbols: ({arr},))")
+                            elif q.q_type == "table_fill":
+                                symbols = q.symbols or ["(1)", "(2)"]
+                                arr = ", ".join([f'"{s}"' for s in symbols])
+                                lines.append(f"            #vertical-symbol-box(symbols: ({arr},))")
+                            else:
+                                ln = q.line_count or 2
+                                lines.append(f"            #vertical-free-box(columns-count: {ln})")
 
-                                lines.append("          ]")
-                                lines.append("        ),")
+                            lines.append("          ]")
+                            lines.append("        ),")
 
-                            lines.append("      )")
-                            lines.append("    ]")
-                            lines.append("  ],")
+                        lines.append("      )")
+                        lines.append("    ]")
+                        lines.append("  ],")
 
-                            lines.extend([
-                                "  [",
-                                "    #rect(width: 100%, height: 100%, stroke: 0.8pt + luma(40), fill: white, inset: 0pt)[",
-                                "      #grid(",
-                                "        columns: (100%,),",
-                                "        rows: (35pt, 28pt, 55pt, 55pt, 22pt, 65pt, 22pt, 75pt, 22pt, 1fr),",
-                                '        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: white)[#align(center + horizon)[#text(size: 11pt, weight: "bold")[国語 解答用紙]]],',
-                                f'        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: white)[#align(center + horizon)[#text(size: 9.5pt, weight: "bold")[【{sec.big_number}】{page_label}]]],',
-                                f'        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: white)[',
-                                '          #align(left + top)[',
-                                '            #v(4pt)#h(4pt)#text(size: 8pt)[大学名:]',
-                                '            #v(10pt)',
-                                f'            #align(center)[#text(size: 10pt, weight: "bold")[{univ_display}] #if "{univ_display}" == "" [#box(width: 75%, stroke: (bottom: 0.5pt))[] #text(size: 8pt)[大学]]]',
-                                '          ]',
-                                '        ],',
-                                f'        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: white)[',
-                                '          #align(left + top)[',
-                                '            #v(4pt)#h(4pt)#text(size: 8pt)[年度・学部:]',
-                                '            #v(10pt)',
-                                f'            #align(center)[#text(size: 10pt, weight: "bold")[{year_display}] #if "{year_display}" == "" [#box(width: 85%, stroke: (bottom: 0.5pt))[]]]',
-                                '          ]',
-                                '        ],',
-                                '        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: white)[#align(center + horizon)[#text(size: 9pt)[受験番号]]],',
-                                '        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: white)[],',
-                                '        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: white)[#align(center + horizon)[#text(size: 9pt)[氏名]]],',
-                                '        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: white)[],',
-                                '        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: white)[#align(center + horizon)[#text(size: 9pt)[※得点]]],',
-                                '        rect(width: 100%, height: 100%, stroke: none, fill: white)[]',
-                                "      )",
-                                "    ]",
-                                "  ]",
-                                ")",
-                                ""
-                            ])
+                        lines.extend([
+                            "  [",
+                            "    #rect(width: 100%, height: 100%, stroke: 0.8pt + luma(40), fill: white, inset: 0pt)[",
+                            "      #grid(",
+                            "        columns: (100%,),",
+                            "        rows: (35pt, 28pt, 55pt, 55pt, 22pt, 65pt, 22pt, 75pt, 22pt, 1fr),",
+                            '        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: white)[#align(center + horizon)[#text(size: 11pt, weight: "bold")[国語 解答用紙]]],',
+                            f'        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: white)[#align(center + horizon)[#text(size: 9.5pt, weight: "bold")[【{sec.big_number}】{page_label}]]],',
+                            f'        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: white)[',
+                            '          #align(left + top)[',
+                            '            #v(4pt)#h(4pt)#text(size: 8pt)[大学名:]',
+                            '            #v(10pt)',
+                            f'            #align(center)[#text(size: 10pt, weight: "bold")[{univ_display}] #if "{univ_display}" == "" [#box(width: 75%, stroke: (bottom: 0.5pt))[] #text(size: 8pt)[大学]]]',
+                            '          ]',
+                            '        ],',
+                            f'        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: white)[',
+                            '          #align(left + top)[',
+                            '            #v(4pt)#h(4pt)#text(size: 8pt)[年度・学部:]',
+                            '            #v(10pt)',
+                            f'            #align(center)[#text(size: 10pt, weight: "bold")[{year_display}] #if "{year_display}" == "" [#box(width: 85%, stroke: (bottom: 0.5pt))[]]]',
+                            '          ]',
+                            '        ],',
+                            '        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: white)[#align(center + horizon)[#text(size: 9pt)[受験番号]]],',
+                            '        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: white)[],',
+                            '        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: white)[#align(center + horizon)[#text(size: 9pt)[氏名]]],',
+                            '        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: white)[],',
+                            '        rect(width: 100%, height: 100%, stroke: (bottom: 0.5pt), fill: white)[#align(center + horizon)[#text(size: 9pt)[※得点]]],',
+                            '        rect(width: 100%, height: 100%, stroke: none, fill: white)[]',
+                            "      )",
+                            "    ]",
+                            "  ]",
+                            ")",
+                            ""
+                        ])
 
                     elif selected_subject == "数学":
                         sheet_count += 1
@@ -462,206 +463,204 @@ Read the exam questions carefully and extract the EXACT question structure. ZERO
                                 "  align: (left + top, right + top),",
                                 f'  text(size: 13pt, weight: "bold")[{year_display} {univ_display} 理科 解答用紙 【{sec.big_number}】],',
                                 '  table(columns: (45pt, 70pt, 35pt, 90pt, 45pt), rows: (16pt, 24pt), align: center + horizon, stroke: 0.6pt + luma(40), table.cell(fill: white)[受験番号], table.cell(rowspan: 2, fill: white)[], table.cell(fill: white)[氏名], table.cell(rowspan: 2, fill: white)[], table.cell(fill: white)[※得点], table.cell(fill: white)[])',
-                                ")",
-                                "#v(5pt)",
-                                "#line(length: 100%, stroke: 1.2pt + luma(40))",
-                                "#v(10pt)",
-                            ])
-                            
-                            lines.append("#grid(")
-                            lines.append("  columns: (1fr, 1fr),")
-                            lines.append("  gutter: 16pt,")
-                            lines.append("  align: left + top,")
-
-                            col_index = 0
-                            for q in questions:
-                                q_name = q.q_number
-                                body_code = "none"
-                                note_str = ""
-                                
-                                if q.q_type == "math_box":
-                                    span = 1
-                                    estimated_lines = q.line_count or 6
-                                    dynamic_h = max(140, min(280, estimated_lines * 26))
-                                    h = f"{dynamic_h}pt"
-                                    body_code = "[#align(top + left)[#v(4pt)#h(4pt)#text(size: 8pt, fill: luma(80))[【計算過程・理由等】]]]"
-                                elif q.q_type == "graph_box":
-                                    span = 1
-                                    h = "220pt"
-                                    body_code = "[#graph-box(height-pt: 190pt)]"
-                                elif q.q_type == "char_grid":
-                                    span = 2
-                                    h = "auto"
-                                    c = q.chars_limit or 50
-                                    note_str = f"{c}字"
-                                    body_code = f"[#v(6pt)#char-grid(chars: {c}, cols-per-line: 35)#v(6pt)]"
-                                elif q.q_type in ["lined_box", "free_box"]:
-                                    span = 2
-                                    ln = q.line_count or 4
-                                    h = "auto"
-                                    body_code = f"[#lined-box(lines: {ln})]"
-                                else:
-                                    span = 1
-                                    h = "100pt"
-                                    
-                                if col_index % 2 + span > 2:
-                                    lines.append("  [],")
-                                    col_index += 1
-                                    
-                                lines.append(f'  grid.cell(colspan: {span})[')
-                                lines.append(f'    #science-cell(label: "{q_name}", note: "{note_str}", height-pt: {h}, body: {body_code})')
-                                lines.append("  ],")
-                                col_index += span
-
-                            if col_index % 2 != 0:
-                                lines.append("  [],")
-
-                            lines.append(")")
-                            lines.append("")
-                            
-                        else:
-                            if sec_idx % 2 == 0:
-                                sheet_count += 1
-                                if sheet_count > 1:
-                                    lines.append("#pagebreak()")
-                                lines.extend([
-                                    "#grid(",
-                                    "  columns: (1fr, auto),",
-                                    "  gutter: 12pt,",
-                                    "  align: (left + top, right + top),",
-                                    f'  text(size: 13pt, weight: "bold")[{year_display} {univ_display} 理科 解答用紙],',
-                                    '  table(columns: (45pt, 70pt, 35pt, 90pt, 45pt), rows: (16pt, 24pt), align: center + horizon, stroke: 0.6pt + luma(40), table.cell(fill: white)[受験番号], table.cell(rowspan: 2, fill: white)[], table.cell(fill: white)[氏名], table.cell(rowspan: 2, fill: white)[], table.cell(fill: white)[※得点], table.cell(fill: white)[])',
-                                    ")",
-                                    "#v(4pt)",
-                                    "#line(length: 100%, stroke: 1.2pt + luma(40))",
-                                    "#v(6pt)",
-                                ])
-                            else:
-                                lines.append("#v(14pt)")
-
-                            sec_title = f"【{sec.big_number}】"
-                            lines.append(f'#rect(width: 100%, fill: white, stroke: 0.8pt + luma(40), inset: 6pt)[#text(weight: "bold", size: 11pt)[#h(4pt){sec_title}]]')
-                            lines.append("#v(10pt)")
-
-                            lines.append("#grid(")
-                            lines.append("  columns: (1fr, 1fr, 1fr, 1fr),")
-                            lines.append("  gutter: 14pt,")
-                            lines.append("  align: left + top,")
-
-                            col_index = 0
-                            for q in questions:
-                                q_name = q.q_number
-                                body_code = "none"
-                                note_str = ""
-                                
-                                if q.q_type == "math_box":
-                                    span = 4
-                                    ln = q.line_count or 4
-                                    h = f"{max(120, ln * 24)}pt"
-                                    body_code = "[#align(top + left)[#v(4pt)#h(4pt)#text(size: 8pt, fill: luma(80))[【計算過程・理由等】]]]"
-                                elif q.q_type == "graph_box":
-                                    span = 2
-                                    h = "140pt"
-                                    body_code = "[#graph-box(height-pt: 120pt)]"
-                                elif q.q_type == "char_grid":
-                                    span = 4
-                                    h = "auto"
-                                    c = q.chars_limit or 50
-                                    note_str = f"{c}字"
-                                    body_code = f"[#v(6pt)#char-grid(chars: {c}, cols-per-line: 35)#v(6pt)]"
-                                elif q.q_type in ["lined_box", "free_box"]:
-                                    span = 4
-                                    ln = q.line_count or 3
-                                    h = "auto"
-                                    body_code = f"[#lined-box(lines: {ln})]"
-                                elif q.q_type == "table_fill":
-                                    span = 1
-                                    h = "35pt"
-                                elif q.q_type == "exact_word_fill":
-                                    span = 2
-                                    h = "auto"
-                                    c = q.chars_limit or 4
-                                    note_str = f"{c}字"
-                                    body_code = f"[#v(6pt)#char-grid(chars: {c}, cols-per-line: {c})#v(6pt)]"
-                                else:
-                                    if q.symbols and len(q.symbols) > 1:
-                                        span = 2
-                                        h = "auto"
-                                        syms = ", ".join([f'"{s}"' for s in q.symbols])
-                                        body_code = f"[#v(6pt)#symbol-table(symbols: ({syms},))#v(6pt)]"
-                                    else:
-                                        span = 2
-                                        h = "50pt"
-
-                                if col_index % 4 + span > 4:
-                                    rem = 4 - (col_index % 4)
-                                    for _ in range(rem):
-                                        lines.append("  [],")
-                                        col_index += 1
-                                        
-                                lines.append(f'  grid.cell(colspan: {span})[')
-                                lines.append(f'    #science-cell(label: "{q_name}", note: "{note_str}", height-pt: {h}, body: {body_code})')
-                                lines.append("  ],")
-                                col_index += span
-
-                            if col_index % 4 != 0:
-                                rem = 4 - (col_index % 4)
-                                for _ in range(rem):
-                                    lines.append("  [],")
-
-                            lines.append(")")
-                            lines.append("")
-
-                    else:
-                        sheet_count += 1
-                        if sheet_count > 1:
-                            lines.append("#pagebreak()")
-                        lines.extend([
-                            "#grid(",
-                            "  columns: (1fr, auto),",
-                            "  gutter: 12pt,",
-                            "  align: (left + top, right + top),",
-                            f'  text(size: 13pt, weight: "bold")[{year_display} {univ_display} {exam.subject} 解答用紙 【{sec.big_number}】],',
-                            '  table(columns: (45pt, 70pt, 35pt, 90pt, 45pt), rows: (16pt, 24pt), align: center + horizon, stroke: 0.6pt + luma(40), table.cell(fill: white)[受験番号], table.cell(rowspan: 2, fill: white)[], table.cell(fill: white)[氏名], table.cell(rowspan: 2, fill: white)[], table.cell(fill: white)[※得点], table.cell(fill: white)[])',
                             ")",
                             "#v(5pt)",
                             "#line(length: 100%, stroke: 1.2pt + luma(40))",
                             "#v(10pt)",
-                            "#columns(2, gutter: 16mm)[",
                         ])
+                        
+                        lines.append("#grid(")
+                        lines.append("  columns: (1fr, 1fr),")
+                        lines.append("  gutter: 16pt,")
+                        lines.append("  align: left + top,")
+
+                        col_index = 0
                         for q in questions:
-                            lines.append("  #block(breakable: false)[")
-                            lines.append(f'    #text(weight: "bold", size: 10pt)[【{q.q_number}】]')
-                            lines.append("    #v(3pt)")
-                            if q.q_type == "char_grid":
-                                c = q.chars_limit or 100
-                                lines.append(f"    #char-grid(chars: {c})")
+                            q_name = q.q_number
+                            body_code = "none"
+                            note_str = ""
+                            
+                            if q.q_type == "math_box":
+                                span = 1
+                                estimated_lines = q.line_count or 6
+                                dynamic_h = max(140, min(280, estimated_lines * 26))
+                                h = f"{dynamic_h}pt"
+                                body_code = "[#align(top + left)[#v(4pt)#h(4pt)#text(size: 8pt, fill: luma(80))[【計算過程・理由等】]]]"
                             elif q.q_type == "graph_box":
-                                lines.append("    #graph-box(height-pt: 160pt)")
-                            elif q.q_type == "exact_word_fill":
-                                symbols = q.symbols or [""]
-                                arr = ", ".join([f'"{s}"' for s in symbols])
-                                c = q.chars_limit or 4
-                                lines.append(f"    #exact-char-box(symbols: ({arr},), chars: {c})")
+                                span = 1
+                                h = "220pt"
+                                body_code = "[#graph-box(height-pt: 190pt)]"
+                            elif q.q_type == "char_grid":
+                                span = 2
+                                h = "auto"
+                                c = q.chars_limit or 50
+                                note_str = f"{c}字"
+                                body_code = f"[#v(6pt)#char-grid(chars: {c}, cols-per-line: 35)#v(6pt)]"
                             elif q.q_type in ["lined_box", "free_box"]:
+                                span = 2
                                 ln = q.line_count or 4
-                                lines.append(f"    #lined-box(lines: {ln})")
-                            elif q.q_type == "reorder":
-                                targets = q.targets or ["3番目", "7番目"]
-                                arr = ", ".join([f'"{t}"' for t in targets])
-                                lines.append(f"    #reorder-box(targets: ({arr},))")
-                            elif q.q_type == "table_fill":
-                                symbols = q.symbols or ["(1)", "(2)", "(3)", "(4)"]
-                                arr = ", ".join([f'"{s}"' for s in symbols])
-                                lines.append(f"    #symbol-table(symbols: ({arr},))")
-                            elif q.q_type == "word_fill":
-                                symbols = q.symbols or ["(1)", "(2)"]
-                                arr = ", ".join([f'"{s}"' for s in symbols])
-                                lines.append(f"    #word-box(symbols: ({arr},))")
-                            lines.append("    #v(12pt)")
-                            lines.append("  ]")
-                        lines.append("]")
+                                h = "auto"
+                                body_code = f"[#lined-box(lines: {ln})]"
+                            else:
+                                span = 1
+                                h = "100pt"
+                                
+                            if col_index % 2 + span > 2:
+                                lines.append("  [],")
+                                col_index += 1
+                                
+                            lines.append(f'  grid.cell(colspan: {span})[')
+                            lines.append(f'    #science-cell(label: "{q_name}", note: "{note_str}", height-pt: {h}, body: {body_code})')
+                            lines.append("  ],")
+                            col_index += span
+
+                        if col_index % 2 != 0:
+                            lines.append("  [],")
+
+                        lines.append(")")
                         lines.append("")
+                        
+                    else:
+                        if sec_idx % 2 == 0:
+                            sheet_count += 1
+                            if sheet_count > 1:
+                                lines.append("#pagebreak()")
+                            lines.extend([
+                                "#grid(",
+                                "  columns: (1fr, auto),",
+                                "  gutter: 12pt,",
+                                "  align: (left + top, right + top),",
+                                f'  text(size: 13pt, weight: "bold")[{year_display} {univ_display} 理科 解答用紙],',
+                                '  table(columns: (45pt, 70pt, 35pt, 90pt, 45pt), rows: (16pt, 24pt), align: center + horizon, stroke: 0.6pt + luma(40), table.cell(fill: white)[受験番号], table.cell(rowspan: 2, fill: white)[], table.cell(fill: white)[氏名], table.cell(rowspan: 2, fill: white)[], table.cell(fill: white)[※得点], table.cell(fill: white)[])',
+                                ")",
+                                "#v(4pt)",
+                                "#line(length: 100%, stroke: 1.2pt + luma(40))",
+                                "#v(6pt)",
+                            ])
+                        else:
+                            lines.append("#v(14pt)")
+
+                        sec_title = f"【{sec.big_number}】"
+                        lines.append(f'#rect(width: 100%, fill: white, stroke: 0.8pt + luma(40), inset: 6pt)[#text(weight: "bold", size: 11pt)[#h(4pt){sec_title}]]')
+                        lines.append("#v(10pt)")
+
+                        lines.append("#grid(")
+                        lines.append("  columns: (1fr, 1fr, 1fr, 1fr),")
+                        lines.append("  gutter: 14pt,")
+                        lines.append("  align: left + top,")
+
+                        col_index = 0
+                        for q in questions:
+                            q_name = q.q_number
+                            body_code = "none"
+                            note_str = ""
+                            
+                            if q.q_type == "math_box":
+                                span = 4
+                                ln = q.line_count or 4
+                                h = f"{max(120, ln * 24)}pt"
+                                body_code = "[#align(top + left)[#v(4pt)#h(4pt)#text(size: 8pt, fill: luma(80))[【計算過程・理由等】]]]"
+                            elif q.q_type == "graph_box":
+                                span = 2
+                                h = "140pt"
+                                body_code = "[#graph-box(height-pt: 120pt)]"
+                            elif q.q_type == "char_grid":
+                                span = 4
+                                h = "auto"
+                                c = q.chars_limit or 50
+                                note_str = f"{c}字"
+                                body_code = f"[#v(6pt)#char-grid(chars: {c}, cols-per-line: 35)#v(6pt)]"
+                            elif q.q_type in ["lined_box", "free_box"]:
+                                span = 4
+                                ln = q.line_count or 3
+                                h = "auto"
+                                body_code = f"[#lined-box(lines: {ln})]"
+                            elif q.q_type == "table_fill":
+                                span = 1
+                                h = "35pt"
+                            elif q.q_type == "exact_word_fill":
+                                span = 2
+                                h = "auto"
+                                c = q.chars_limit or 4
+                                note_str = f"{c}字"
+                                body_code = f"[#v(6pt)#char-grid(chars: {c}, cols-per-line: {c})#v(6pt)]"
+                            else:
+                                if q.symbols and len(q.symbols) > 1:
+                                    span = 2
+                                    h = "auto"
+                                    syms = ", ".join([f'"{s}"' for s in q.symbols])
+                                    body_code = f"[#v(6pt)#symbol-table(symbols: ({syms},))#v(6pt)]"
+                                else:
+                                    span = 2
+                                    h = "50pt"
+
+                            if col_index % 4 + span > 4:
+                                rem = 4 - (col_index % 4)
+                                for _ in range(rem):
+                                    lines.append("  [],")
+                                    col_index += 1
+                                    
+                            lines.append(f'  grid.cell(colspan: {span})[')
+                            lines.append(f'    #science-cell(label: "{q_name}", note: "{note_str}", height-pt: {h}, body: {body_code})')
+                            lines.append("  ],")
+                            col_index += span
+
+                        if col_index % 4 != 0:
+                            rem = 4 - (col_index % 4)
+                            for _ in range(rem):
+                                lines.append("  [],")
+
+                        lines.append(")")
+                        lines.append("")
+
+                else:
+                    sheet_count += 1
+                    if sheet_count > 1:
+                        lines.append("#pagebreak()")
+                    lines.extend([
+                        "#grid(",
+                        "  columns: (1fr, auto),",
+                        "  gutter: 12pt,",
+                        "  align: (left + top, right + top),",
+                        f'  text(size: 13pt, weight: "bold")[{year_display} {univ_display} {exam.subject} 解答用紙 【{sec.big_number}】],',
+                        '  table(columns: (45pt, 70pt, 35pt, 90pt, 45pt), rows: (16pt, 24pt), align: center + horizon, stroke: 0.6pt + luma(40), table.cell(fill: white)[受験番号], table.cell(rowspan: 2, fill: white)[], table.cell(fill: white)[氏名], table.cell(rowspan: 2, fill: white)[], table.cell(fill: white)[※得点], table.cell(fill: white)[])',
+                        ")",
+                        "#v(5pt)",
+                        "#line(length: 100%, stroke: 1.2pt + luma(40))",
+                        "#v(10pt)",
+                        "#columns(2, gutter: 16mm)[",
+                    ])
+                    for q in questions:
+                        lines.append("  #block(breakable: false)[")
+                        lines.append(f'    #text(weight: "bold", size: 10pt)[【{q.q_number}】]')
+                        lines.append("    #v(3pt)")
+                        if q.q_type == "char_grid":
+                            c = q.chars_limit or 100
+                            lines.append(f"    #char-grid(chars: {c})")
+                        elif q.q_type == "graph_box":
+                            lines.append("    #graph-box(height-pt: 160pt)")
+                        elif q.q_type == "exact_word_fill":
+                            symbols = q.symbols or [""]
+                            arr = ", ".join([f'"{s}"' for s in symbols])
+                            c = q.chars_limit or 4
+                            lines.append(f"    #exact-char-box(symbols: ({arr},), chars: {c})")
+                        elif q.q_type in ["lined_box", "free_box"]:
+                            ln = q.line_count or 4
+                            lines.append(f"    #lined-box(lines: {ln})")
+                        elif q.q_type == "reorder":
+                            lines.append("    #reorder-box()")
+                        elif q.q_type == "table_fill":
+                            symbols = q.symbols or ["(1)", "(2)", "(3)", "(4)"]
+                            arr = ", ".join([f'"{s}"' for s in symbols])
+                            lines.append(f"    #symbol-table(symbols: ({arr},))")
+                        elif q.q_type == "word_fill":
+                            symbols = q.symbols or ["(1)", "(2)"]
+                            arr = ", ".join([f'"{s}"' for s in symbols])
+                            lines.append(f"    #word-box(symbols: ({arr},))")
+                        lines.append("    #v(12pt)")
+                        lines.append("  ]")
+                    lines.append("]")
+                    lines.append("")
 
             typst_code = "\n".join(lines)
             typ_path = "web_output.typ"
@@ -685,6 +684,21 @@ Read the exam questions carefully and extract the EXACT question structure. ZERO
             with open(pdf_path, "rb") as f:
                 answer_sheet_bytes = f.read()
 
+            # 判明している情報だけを組み合わせてファイル名を作成（余計な情報はカット）
+            name_parts = []
+            if has_univ:
+                name_parts.append(f"{raw_u}大学")
+            if has_year:
+                name_parts.append(f"{raw_y}年度")
+            if exam.subject:
+                name_parts.append(exam.subject)
+
+            doc_type = "問題および解答用紙" if include_questions else "解答用紙"
+            name_parts.append(doc_type)
+
+            file_display_name = f"{'_'.join(name_parts)}.pdf"
+            button_label = f"{file_display_name} をダウンロード"
+
             if include_questions:
                 merger = PdfWriter()
                 q_pdf_reader = PdfReader(io.BytesIO(pdf_bytes))
@@ -698,12 +712,8 @@ Read the exam questions carefully and extract the EXACT question structure. ZERO
                 merged_output = io.BytesIO()
                 merger.write(merged_output)
                 final_pdf_bytes = merged_output.getvalue()
-                button_label = "問題＋解答用紙PDFをダウンロード"
-                file_display_name = f"{exam.subject}_問題および解答用紙.pdf"
             else:
                 final_pdf_bytes = answer_sheet_bytes
-                button_label = "B4解答用紙PDFをダウンロード"
-                file_display_name = f"{exam.subject}_解答用紙.pdf"
 
             progress_bar.progress(100)
             progress_text.text("組版が完了しました。")

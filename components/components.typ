@@ -219,22 +219,29 @@
   )
 }
 
-#let reorder-box(targets: ("3番目", "7番目")) = {
-  let cols = ()
-  for _ in targets {
-    cols.push(1fr)
-    cols.push(1.6fr)
+// 矢印で数字を書き込める並べ替え枠
+#let reorder-box(targets: (), count: 6) = {
+  let total = calc.max(count, 6)
+  let cells = ()
+  for i in range(total) {
+    cells.push(
+      rect(
+        width: 22pt,
+        height: 24pt,
+        stroke: 0.6pt + luma(40),
+        fill: white
+      )[]
+    )
+    if i < total - 1 {
+      cells.push(
+        align(center + horizon)[#text(size: 10pt, fill: luma(40))[→]]
+      )
+    }
   }
-  grid(
-    columns: cols,
-    rows: (28pt,),
-    stroke: 0.6pt + luma(40),
-    align: center + horizon,
-    fill: white,
-    ..targets.map(t => (
-      grid.cell(fill: white)[#text(weight: "bold", size: 9pt)[#t]],
-      []
-    )).flatten()
+  stack(
+    dir: ltr,
+    spacing: 4pt,
+    ..cells
   )
 }
 
@@ -292,6 +299,7 @@
   )
 }
 
+// ==================== 4. 理科・本番仕様セル ====================
 #let science-cell(label: "問1", note: "", height-pt: 45pt, body: none) = {
   rect(
     width: 100%,
@@ -314,7 +322,6 @@
 }
 
 // ==================== 5. マークシート仕様コンポーネント ====================
-// 共通テスト・マーク模試本番仕様のスタジアム型マーク楕円バブル
 #let mark-bubble(label) = {
   box(
     width: 13.5pt,
@@ -326,7 +333,6 @@
   )
 }
 
-// マークシートの1行（設問番号 ＋ 選択マーク群）
 #let mark-row(q-label, options: ("1", "2", "3", "4")) = {
   table.cell(stroke: 0.4pt + luma(100), fill: white)[#text(weight: "bold", size: 8pt)[#q-label]]
   table.cell(stroke: 0.4pt + luma(100), fill: white)[
@@ -338,8 +344,7 @@
   ]
 }
 
-// 受験番号マーク欄（0〜9の縦マーク）
-#let exam-id-mark-box(digits: 5) = {
+#let exam-id-mark-box(digits: 6) = {
   table(
     columns: (32pt, ..range(digits).map(_ => 16pt)),
     rows: (14pt, 16pt, ..range(10).map(_ => 13pt)),
