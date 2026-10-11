@@ -488,6 +488,7 @@ def build_typst_code(exam, exam_format, selected_subject, science_layout):
                     lines.append(")")
                     lines.append("")
 
+            # 英語・地歴社会
             else:
                 sheet_count += 1
                 if sheet_count > 1:
@@ -509,6 +510,7 @@ def build_typst_code(exam, exam_format, selected_subject, science_layout):
                 current_choice_group = []
 
                 for q in questions:
+                    # 単一の記号枠が連続する場合のみ集約
                     if q.q_type == "table_fill" and (not q.symbols or len(q.symbols) <= 1):
                         current_choice_group.append(q.q_number)
                     else:
@@ -549,9 +551,10 @@ def build_typst_code(exam, exam_format, selected_subject, science_layout):
                         elif q.q_type == "reorder":
                             lines.append("    #reorder-box()")
                         elif q.q_type == "table_fill":
-                            symbols = q.symbols or ["(1)", "(2)", "(3)", "(4)"]
-                            arr = ", ".join([f'"{s}"' for s in symbols])
-                            lines.append(f"    #symbol-table(symbols: ({arr},))")
+                            # symbols に小問リストがある場合、見出しの下に横並びで出力
+                            opts = q.symbols if q.symbols else ["(1)", "(2)", "(3)", "(4)"]
+                            arr = ", ".join([f'"{s}"' for s in opts])
+                            lines.append(f"    #compact-symbol-grid(items: ({arr},))")
                         elif q.q_type == "word_fill":
                             symbols = q.symbols or ["(1)", "(2)"]
                             arr = ", ".join([f'"{s}"' for s in symbols])
@@ -680,9 +683,11 @@ Mentally solve the question first to determine the box type and size. ZERO HALLU
                 prompt = """
 You are an expert English entrance exam typesetter. Mentally solve questions to estimate required space. ZERO HALLUCINATION.
 
-1. MULTIPLE CHOICE / LISTENING (記号選択・リスニング):
+1. MULTIPLE CHOICE & LISTENING (記号選択・リスニング):
    - For single-answer multiple choice questions (e.g. Q7-Q21 listening, Q22-Q26 error correction):
      Set `q_type="table_fill"`. Do NOT put the options (a, b, c, d, e) inside symbols! Just set `symbols=None`.
+   - CRITICAL: If a question has multiple blanks (e.g. "空所(1)〜(5)に当てはまる文を選べ"):
+     Set `q_type="table_fill"`, and set `symbols=["(1)", "(2)", "(3)", "(4)", "(5)"]` so all blanks have distinct answer boxes!
 2. WORD ORDERING (並べ替え): Use `q_type="reorder"`.
 3. SHORT ANSWER: Use `q_type="word_fill"`, set `symbols`.
 4. TRANSLATION/EXPLANATION: If character limit exists, use `q_type="char_grid"`. If no limit, use `q_type="lined_box"` and estimate `line_count` (3 to 6).
@@ -824,6 +829,10 @@ Read the exam questions carefully and extract the EXACT question structure. ZERO
                             elif q.q_type == "exact_word_fill":
                                 new_chars = st.number_input("抜き出し文字数", min_value=1, max_value=20, value=q.chars_limit or 4, key=f"qex_{sec_i}_{q_i}")
                                 q.chars_limit = new_chars
+                            elif q.q_type == "table_fill":
+                                cur_count = len(q.symbols) if q.symbols else 1
+                                new_count = st.number_input("小問・マークの個数", min_value=1, max_value=15, value=cur_count, key=f"qcnt_{sec_i}_{q_i}")
+                                q.symbols = [f"({i+1})" for i in range(new_count)] if new_count > 1 else None
                             else:
                                 st.write("")
 
