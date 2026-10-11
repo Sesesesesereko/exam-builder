@@ -75,6 +75,19 @@ st.markdown(f"""
 
 include_questions = st.checkbox("問題用紙もまとめて1つのPDFにする（問題 ＋ 解答用紙）", value=False)
 
+TYPE_LABEL_MAP = {
+    "table_fill": "記号選択（a〜e・①〜④）",
+    "lined_box": "横罫線（和訳・英作文・短論述）",
+    "char_grid": "原稿用紙マス（○字以内）",
+    "math_box": "計算・立式枠（数学・物理）",
+    "graph_box": "作図・グラフ枠",
+    "word_fill": "単語・空所補充",
+    "exact_word_fill": "抜き出し指定マス（○字）",
+    "free_box": "白紙枠（短答・計算）",
+    "reorder": "整序・並べ替え（矢印）"
+}
+LABEL_TO_TYPE_MAP = {v: k for k, v in TYPE_LABEL_MAP.items()}
+
 def get_q_width_mm(q):
     base_gap = 14.0
     if q.q_type == "char_grid":
@@ -286,9 +299,9 @@ def build_typst_code(exam, exam_format, selected_subject, science_layout):
                         "      )",
                         "    ]",
                         "  ]",
-                        ")",
-                        ""
-                    ])
+                    ")",
+                    ""
+                ])
 
             elif selected_subject == "数学":
                 sheet_count += 1
@@ -745,9 +758,9 @@ Read the exam questions carefully and extract the EXACT question structure. ZERO
             exam = ExamPaper.model_validate_json(response.text)
             exam.subject = selected_subject
 
-            # 状態を保存（微調整用）
             st.session_state["cached_exam"] = exam
             st.session_state["cached_pdf_bytes"] = pdf_bytes
+            st.session_state["is_modified"] = False
 
             progress_text.text("3/3: B4本番用紙を組版中...")
             progress_bar.progress(80)
@@ -764,58 +777,62 @@ Read the exam questions carefully and extract the EXACT question structure. ZERO
         except Exception as e:
             st.error(f"エラー詳細: {str(e)}")
 
-    # ダウンロードボタン表示（普段はここで完了）
     if "final_pdf_bytes" in st.session_state and "file_display_name" in st.session_state:
+        if st.session_state.get("is_modified", False):
+            st.success("✅ 手動修正した内容でPDFを更新しました！ 下のボタンからダウンロードできます。")
+            button_label = f"📥 {st.session_state['file_display_name']}（修正版）をダウンロード"
+        else:
+            button_label = f"📥 {st.session_state['file_display_name']} をダウンロード"
+
         st.download_button(
-            label=f"{st.session_state['file_display_name']} をダウンロード",
+            label=button_label,
             data=st.session_state["final_pdf_bytes"],
             file_name=st.session_state["file_display_name"],
             mime="application/pdf",
             type="primary"
         )
 
-        # 普段は閉じており、直したい時だけ開く微調整エリア
         with st.expander("🛠️ 設問や枠サイズを微調整する（任意）", expanded=False):
-            st.caption("AIが読み取った枠のタイプや行数を手動で変更し、すぐに再出力できます。")
+            st.caption("AIが自動判定した枠の種類や行数を手動で変更し、すぐにPDFを再出力できます。")
             cached_exam = st.session_state.get("cached_exam")
             if cached_exam:
-                type_options = ["table_fill", "lined_box", "char_grid", "math_box", "graph_box", "word_fill", "exact_word_fill", "free_box", "reorder"]
+                japanese_type_options = list(TYPE_LABEL_MAP.values())
                 
-                updated = False
                 for sec_i, sec in enumerate(cached_exam.sections):
-                    st.markdown(f"**大問: {sec.big_number}**")
+                    st.markdown(f"**【{sec.big_number}】**")
                     for q_i, q in enumerate(sec.questions):
-                        cols = st.columns([2, 3, 2, 2])
+                        cols = st.columns([2, 4, 3])
                         with cols[0]:
                             new_num = st.text_input("設問番号", value=q.q_number, key=f"qnum_{sec_i}_{q_i}")
-                            if new_num != q.q_number:
-                                q.q_number = new_num
-                                updated = True
+                            q.q_number = new_num
                         with cols[1]:
-                            cur_type = q.q_type if q.q_type in type_options else "lined_box"
-                            new_type = st.selectbox("枠タイプ", options=type_options, index=type_options.index(cur_type), key=f"qtype_{sec_i}_{q_i}")
-                            if new_type != q.q_type:
-                                q.q_type = new_type
-                                updated = True
+                            current_jp_label = TYPE_LABEL_MAP.get(q.q_type, "横罫線（和訳・英作文・短論述）")
+                            new_jp_label = st.selectbox(
+                                "枠の種類",
+                                options=japanese_type_options,
+                                index=japanese_type_options.index(current_jp_label),
+                                key=f"qtype_{sec_i}_{q_i}"
+                            )
+                            q.q_type = LABEL_TO_TYPE_MAP[new_jp_label]
                         with cols[2]:
                             if q.q_type in ["lined_box", "free_box", "math_box"]:
-                                new_lines = st.number_input("行数", min_value=1, max_value=20, value=q.line_count or 4, key=f"qln_{sec_i}_{q_i}")
-                                if new_lines != q.line_count:
-                                    q.line_count = new_lines
-                                    updated = True
+                                new_lines = st.number_input("枠の高さ・行数", min_value=1, max_value=20, value=q.line_count or 4, key=f"qln_{sec_i}_{q_i}")
+                                q.line_count = new_lines
                             elif q.q_type == "char_grid":
-                                new_chars = st.number_input("字数", min_value=10, max_value=600, step=10, value=q.chars_limit or 100, key=f"qch_{sec_i}_{q_i}")
-                                if new_chars != q.chars_limit:
-                                    q.chars_limit = new_chars
-                                    updated = True
-                        with cols[3]:
-                            st.write("")
+                                new_chars = st.number_input("字数制限（マス数）", min_value=10, max_value=600, step=10, value=q.chars_limit or 100, key=f"qch_{sec_i}_{q_i}")
+                                q.chars_limit = new_chars
+                            elif q.q_type == "exact_word_fill":
+                                new_chars = st.number_input("抜き出し文字数", min_value=1, max_value=20, value=q.chars_limit or 4, key=f"qex_{sec_i}_{q_i}")
+                                q.chars_limit = new_chars
+                            else:
+                                st.write("")
 
                 if st.button("🔄 修正した内容でPDFを再生成する", type="secondary"):
                     new_typst = build_typst_code(cached_exam, exam_format, selected_subject, science_layout)
                     new_bytes, new_name = compile_and_get_pdf(new_typst, st.session_state["cached_pdf_bytes"], cached_exam, include_questions)
                     st.session_state["final_pdf_bytes"] = new_bytes
                     st.session_state["file_display_name"] = new_name
+                    st.session_state["is_modified"] = True
                     st.rerun()
 
 st.markdown(f"""
