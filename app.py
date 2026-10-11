@@ -128,7 +128,6 @@ if uploaded_file is not None:
 
             client = genai.Client(api_key=api_key)
 
-            # マークシート用プロンプト（全教科共通）
             if exam_format == "マークシート式（共通テスト・私大マーク型）":
                 prompt = f"""
 You are an expert typesetter for Multiple-Choice Mark Sheet (OMR) Entrance Exams (like Japanese Common Test / 共通テスト).
@@ -179,7 +178,7 @@ Otherwise, output exactly ONE question per section with `q_number="解答欄"`, 
 You are an expert typesetter for University Entrance Exams in History, Geography, and Civics.
 Mentally solve and construct the standard model answer for each question first to estimate space accurately. ZERO HALLUCINATION.
 
-1. ESSAYS & DESCRIPTIONS: If character limit exists, use `q_type="char_grid"`, set `chars_limit`. If no limit, use `q_type="lined_box"`, estimate `line_count` (2 to 8 lines).
+1. ESSAYS & DESCRIPTIONS: If character limit exists, use `q_type="char_grid"`, set `chars_limit`. If no limit, use `q_type="lined_box"` and estimate `line_count` (2 to 8 lines).
 2. SHORT TERMS & IDENTIFICATION: Use `q_type="word_fill"`, set `symbols`.
 3. MULTIPLE CHOICE: Use `q_type="table_fill"`, set `symbols`.
 4. DRAWING / MAP ANNOTATION: Use `q_type="graph_box"`.
@@ -260,9 +259,6 @@ Read the exam questions carefully and extract the EXACT question structure. ZERO
                 "",
             ]
 
-            # ==============================================================
-            # 【A】マークシート式の専用組版エンジン（全教科共通）
-            # ==============================================================
             if exam_format == "マークシート式（共通テスト・私大マーク型）":
                 lines.extend([
                     "#grid(",
@@ -283,7 +279,8 @@ Read the exam questions carefully and extract the EXACT question structure. ZERO
                     "    #exam-id-mark-box(digits: 6)",
                     "    #v(10pt)",
                     "    #rect(width: 145pt, stroke: 0.5pt + luma(60), inset: 6pt, fill: white)[",
-                    '      #text(size: 7.5pt, weight: "bold")[【マーク上の注意】]\',
+                    '      #text(size: 7.5pt, weight: "bold")[【マーク上の注意】]',
+                    '      #v(3pt)',
                     '      #text(size: 6.5pt)[',
                     "      1. HBまたはBの黒鉛筆を使用すること。\n",
                     "      2. 枠からはみ出さず濃く塗りつぶすこと。\n",
@@ -318,9 +315,6 @@ Read the exam questions carefully and extract the EXACT question structure. ZERO
                     ""
                 ])
 
-            # ==============================================================
-            # 【B】記述・論述式の組版エンジン
-            # ==============================================================
             else:
                 sheet_count = 0
                 for sec_idx, sec in enumerate(exam.sections):
