@@ -27,26 +27,27 @@ st.markdown("""
     .block-container { padding-top: 2rem; padding-bottom: 3rem; max-width: 840px; }
     
     .header-box { 
-        border-bottom: 1px solid #e2e8f0; 
+        border-bottom: 1px solid rgba(148, 163, 184, 0.3); 
         padding-bottom: 1.2rem; 
         margin-bottom: 1.5rem; 
     }
     .header-title { 
         font-size: 1.6rem; 
         font-weight: 700; 
-        color: #0f172a; 
+        color: inherit; 
         letter-spacing: -0.01em; 
         margin-bottom: 0.3rem; 
     }
     .header-sub { 
         font-size: 0.88rem; 
-        color: #64748b; 
+        color: inherit; 
+        opacity: 0.8;
         line-height: 1.5; 
     }
     
     .auth-panel {
-        background-color: #f8fafc;
-        border: 1px solid #cbd5e1;
+        background-color: rgba(148, 163, 184, 0.08);
+        border: 1px solid rgba(148, 163, 184, 0.3);
         border-radius: 8px;
         padding: 16px 20px;
         margin-bottom: 1.5rem;
@@ -54,12 +55,13 @@ st.markdown("""
     .auth-title {
         font-size: 0.95rem;
         font-weight: 700;
-        color: #1e293b;
+        color: inherit;
         margin-bottom: 6px;
     }
     .auth-desc {
         font-size: 0.82rem;
-        color: #475569;
+        color: inherit;
+        opacity: 0.85;
         margin-bottom: 12px;
         line-height: 1.5;
     }
@@ -67,29 +69,31 @@ st.markdown("""
         margin: 0;
         padding-left: 1.2rem;
         font-size: 0.83rem;
-        color: #334155;
+        color: inherit;
+        opacity: 0.9;
         line-height: 1.7;
     }
     .step-list a {
-        color: #2563eb;
+        color: #3b82f6;
         text-decoration: underline;
         font-weight: 600;
     }
     
     div[data-testid="stFileUploader"] { 
-        border: 1px solid #cbd5e1; 
+        border: 1px dashed rgba(148, 163, 184, 0.4); 
         border-radius: 6px; 
         padding: 12px; 
         margin-bottom: 0.5rem; 
     }
     .notice-box { 
         font-size: 0.82rem; 
-        color: #64748b; 
+        color: inherit; 
+        opacity: 0.75; 
         margin-bottom: 1.2rem; 
         line-height: 1.5; 
     }
     .notice-box a { 
-        color: #2563eb; 
+        color: #3b82f6; 
         text-decoration: underline; 
     }
     
@@ -99,27 +103,28 @@ st.markdown("""
         height: 3.2rem; 
         font-weight: 700; 
         font-size: 1rem; 
-        background-color: #0f172a; 
+        background-color: #2563eb; 
         color: #ffffff !important; 
         border: none; 
         transition: background-color 0.2s ease; 
     }
     .stButton>button:hover { 
-        background-color: #1e293b; 
+        background-color: #1d4ed8; 
     }
 
     .file-config-card {
-        background-color: #ffffff;
-        border: 1px solid #e2e8f0;
+        background-color: rgba(148, 163, 184, 0.1);
+        border: 1px solid rgba(148, 163, 184, 0.25);
         border-radius: 6px;
         padding: 12px 16px;
         margin-bottom: 10px;
+        color: inherit;
     }
     
     .footer-container { 
         margin-top: 3.5rem; 
         padding-top: 1.5rem; 
-        border-top: 1px solid #e2e8f0; 
+        border-top: 1px solid rgba(148, 163, 184, 0.3); 
         display: flex; 
         justify-content: space-between; 
         align-items: center; 
@@ -128,12 +133,13 @@ st.markdown("""
     }
     .footer-text { 
         font-size: 0.82rem; 
-        color: #64748b; 
+        color: inherit; 
+        opacity: 0.75; 
     }
     .footer-link { 
         font-size: 0.85rem; 
         font-weight: 500; 
-        color: #2563eb; 
+        color: #3b82f6; 
         text-decoration: none; 
     }
     .footer-link:hover { 
@@ -778,7 +784,7 @@ Otherwise, output exactly ONE question per section with `q_number="解答欄"`, 
 You are an expert typesetter for University Entrance Exams in History, Geography, and Civics.
 Mentally solve and construct the standard model answer for each question first to estimate space accurately. ZERO HALLUCINATION.
 
-1. ESSAYS & DESCRIPTIONS: If character limit exists, use `q_type="char_grid"`, set `chars_limit`. If no limit, use `q_type="lined_box"`, estimate `line_count` (2 to 8 lines).
+1. ESSAYS & DESCRIPTIONS: If character limit exists, use `q_type="char_grid"`, set `chars_limit`. If no limit, use `q_type="lined_box"` and estimate `line_count` (2 to 8 lines).
 2. SHORT TERMS & IDENTIFICATION: Use `q_type="word_fill"`, set `symbols`.
 3. MULTIPLE CHOICE: Use `q_type="table_fill"`, set `symbols`.
 4. DRAWING / MAP ANNOTATION: Use `q_type="graph_box"`.
@@ -854,7 +860,6 @@ if uploaded_files:
         st.markdown(f'<div class="file-config-card">📄 <strong>{f.name}</strong></div>', unsafe_allow_html=True)
         cols = st.columns([3, 4, 3])
         
-        # ファイル名から科目を簡易推測
         default_subj_idx = 0
         fname_lower = f.name.lower()
         if "英" in fname_lower or "eng" in fname_lower:
@@ -885,7 +890,6 @@ if uploaded_files:
         })
 
     if st.button("解答用紙を作成する"):
-        # ユーザー自身の入力キーのみを許可（環境変数フォールバックは完全廃止）
         if not user_api_key:
             st.error("Gemini APIキーが設定されていません。ページ上部の手順に従ってAPIキーを入力してください。")
             st.stop()
@@ -928,7 +932,6 @@ if uploaded_files:
             progress_bar.progress(100)
             progress_text.text("組版が完了しました。")
 
-            # 1. 解答用紙まとめ（各科目のヘッダーは独立して維持）
             merger_a = PdfWriter()
             for r in results_list:
                 for p in PdfReader(io.BytesIO(r["a_bytes"])).pages:
@@ -936,7 +939,6 @@ if uploaded_files:
             out_a = io.BytesIO()
             merger_a.write(out_a)
 
-            # 2. 問題用紙まとめ
             merger_q = PdfWriter()
             for r in results_list:
                 for p in PdfReader(io.BytesIO(r["q_bytes"])).pages:
@@ -944,7 +946,6 @@ if uploaded_files:
             out_q = io.BytesIO()
             merger_q.write(out_q)
 
-            # 3. 問題 ＋ 解答（科目ごとに 問題 -> 解答 の順）
             merger_qa = PdfWriter()
             for r in results_list:
                 for p in PdfReader(io.BytesIO(r["q_bytes"])).pages:
@@ -954,7 +955,6 @@ if uploaded_files:
             out_qa = io.BytesIO()
             merger_qa.write(out_qa)
 
-            # ファイル名用の大学名・年度
             first_r = results_list[0]
             raw_u = (first_r["univ"] or "").replace("大学", "").replace("大学名", "").strip()
             u_str = f"{raw_u}大学" if (raw_u and raw_u.lower() not in ["unknown", "none", "未定"]) else ""
