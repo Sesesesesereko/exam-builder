@@ -108,7 +108,7 @@ st.markdown("""
         background-color: #1e293b; 
     }
 
-    .batch-file-card {
+    .file-config-card {
         background-color: #ffffff;
         border: 1px solid #e2e8f0;
         border-radius: 6px;
@@ -259,7 +259,6 @@ def build_typst_code(exam, exam_format, selected_subject, science_layout=""):
     has_year = bool(raw_y and raw_y.lower() not in ["unknown", "none", "未定"])
     year_display = f"{raw_y}年度" if has_year else ""
 
-    # 受験番号の改行崩れを防ぐ共通ヘッダー（54pt幅 + 8.5pt文字）
     header_table_code = 'table(columns: (54pt, 68pt, 36pt, 88pt, 45pt), rows: (16pt, 24pt), align: center + horizon, stroke: 0.6pt + luma(40), table.cell(fill: white)[#text(size: 8.5pt)[受験番号]], table.cell(rowspan: 2, fill: white)[], table.cell(fill: white)[氏名], table.cell(rowspan: 2, fill: white)[], table.cell(fill: white)[※得点], table.cell(fill: white)[])'
 
     lines = [
@@ -833,349 +832,173 @@ def parse_exam_with_gemini(client, pdf_bytes, prompt):
                 continue
             raise api_err
 
-# ----------------- タブUI -----------------
-tab_single, tab_batch = st.tabs(["1教科ずつ作成", "複数教科まとめて作成"])
+# ----------------- メイン画面（1本化） -----------------
+uploaded_files = st.file_uploader(
+    "過去問PDFをアップロード（1ファイルまたは複数ファイル）",
+    type=["pdf"],
+    accept_multiple_files=True,
+    help="1教科だけでも、複数教科まとめてでもアップロードできます。"
+)
 
-# =========================================================
-# タブ1: 1教科ずつ作成
-# =========================================================
-with tab_single:
-    selected_subject = st.radio(
-        "科目を選択してください",
-        options=SUBJECT_OPTIONS,
-        horizontal=True,
-        key="single_subj"
-    )
+st.markdown(f"""
+<div class="notice-box">
+    ※ 過去問PDFをお持ちでない場合は、各大学の公式サイトや <a href="{TOSHIN_URL}" target="_blank" rel="noopener noreferrer">東進 過去問データベース</a> などの公式ポータル等から各自ご用意ください。
+</div>
+""", unsafe_allow_html=True)
 
-    exam_format = st.radio(
-        "形式を選択してください",
-        options=FORMAT_OPTIONS,
-        horizontal=True,
-        key="single_fmt"
-    )
+if uploaded_files:
+    st.markdown("##### アップロードした問題の設定")
+    
+    file_configs = []
+    for idx, f in enumerate(uploaded_files):
+        st.markdown(f'<div class="file-config-card">📄 <strong>{f.name}</strong></div>', unsafe_allow_html=True)
+        cols = st.columns([3, 4, 3])
+        
+        # ファイル名から科目を簡易推測
+        default_subj_idx = 0
+        fname_lower = f.name.lower()
+        if "英" in fname_lower or "eng" in fname_lower:
+            default_subj_idx = 1
+        elif "数" in fname_lower or "math" in fname_lower:
+            default_subj_idx = 2
+        elif "歴" in fname_lower or "社" in fname_lower or "世" in fname_lower or "日" in fname_lower or "地" in fname_lower:
+            default_subj_idx = 3
+        elif "理" in fname_lower or "物" in fname_lower or "化" in fname_lower or "生" in fname_lower:
+            default_subj_idx = 4
+        
+        with cols[0]:
+            b_subj = st.selectbox("科目", options=SUBJECT_OPTIONS, index=default_subj_idx, key=f"f_subj_{idx}")
+        with cols[1]:
+            b_fmt = st.selectbox("形式", options=FORMAT_OPTIONS, key=f"f_fmt_{idx}")
+        with cols[2]:
+            b_sci = ""
+            if b_subj == "理科" and b_fmt == "記述・論述式":
+                b_sci = st.selectbox("理科設定", options=["記述メイン（国公立・難関大風）", "記号・短答メイン（模試風）"], key=f"f_sci_{idx}")
+            else:
+                st.write("")
 
-    science_layout = ""
-    if selected_subject == "理科" and exam_format == "記述・論述式":
-        science_layout = st.radio(
-            "理科のレイアウト設定",
-            options=["記述メイン（国公立・難関大風）", "記号・短答メイン（模試風）"],
-            horizontal=True,
-            key="single_sci"
+        file_configs.append({
+            "file": f,
+            "subject": b_subj,
+            "format": b_fmt,
+            "sci_layout": b_sci
+        })
+
+    if st.button("解答用紙を作成する"):
+        # ユーザー自身の入力キーのみを許可（環境変数フォールバックは完全廃止）
+        if not user_api_key:
+            st.error("Gemini APIキーが設定されていません。ページ上部の手順に従ってAPIキーを入力してください。")
+            st.stop()
+
+        total_count = len(file_configs)
+        progress_text = st.empty()
+        progress_bar = st.progress(0)
+
+        client = genai.Client(api_key=user_api_key)
+        results_list = []
+
+        try:
+            for idx, item in enumerate(file_configs):
+                f = item["file"]
+                f_subj = item["subject"]
+                f_fmt = item["format"]
+                f_sci = item["sci_layout"]
+
+                f.seek(0)
+                cur_q_bytes = f.read()
+
+                progress_text.text(f"[{idx+1}/{total_count}] {f_subj}（{f.name}）の設問構成を解析中...")
+                progress_bar.progress(int((idx / total_count) * 80))
+
+                prompt = get_ai_prompt(f_subj, f_fmt, f_sci)
+                exam = parse_exam_with_gemini(client, cur_q_bytes, prompt)
+                exam.subject = f_subj
+
+                typ_code = build_typst_code(exam, f_fmt, f_subj, f_sci)
+                cur_a_bytes = compile_typst_to_pdf(typ_code, f"web_output_{idx}")
+
+                results_list.append({
+                    "q_bytes": cur_q_bytes,
+                    "a_bytes": cur_a_bytes,
+                    "univ": exam.university,
+                    "year": exam.year,
+                    "subject": f_subj
+                })
+
+            progress_bar.progress(100)
+            progress_text.text("組版が完了しました。")
+
+            # 1. 解答用紙まとめ（各科目のヘッダーは独立して維持）
+            merger_a = PdfWriter()
+            for r in results_list:
+                for p in PdfReader(io.BytesIO(r["a_bytes"])).pages:
+                    merger_a.add_page(p)
+            out_a = io.BytesIO()
+            merger_a.write(out_a)
+
+            # 2. 問題用紙まとめ
+            merger_q = PdfWriter()
+            for r in results_list:
+                for p in PdfReader(io.BytesIO(r["q_bytes"])).pages:
+                    merger_q.add_page(p)
+            out_q = io.BytesIO()
+            merger_q.write(out_q)
+
+            # 3. 問題 ＋ 解答（科目ごとに 問題 -> 解答 の順）
+            merger_qa = PdfWriter()
+            for r in results_list:
+                for p in PdfReader(io.BytesIO(r["q_bytes"])).pages:
+                    merger_qa.add_page(p)
+                for p in PdfReader(io.BytesIO(r["a_bytes"])).pages:
+                    merger_qa.add_page(p)
+            out_qa = io.BytesIO()
+            merger_qa.write(out_qa)
+
+            # ファイル名用の大学名・年度
+            first_r = results_list[0]
+            raw_u = (first_r["univ"] or "").replace("大学", "").replace("大学名", "").strip()
+            u_str = f"{raw_u}大学" if (raw_u and raw_u.lower() not in ["unknown", "none", "未定"]) else ""
+            raw_y = (str(first_r["year"]) if first_r["year"] else "").replace("年度", "").strip()
+            y_str = f"{raw_y}年度" if (raw_y and raw_y.lower() not in ["unknown", "none", "未定"]) else ""
+
+            subj_label = first_r["subject"] if total_count == 1 else "全科目"
+            base_prefix = "_".join([part for part in [u_str, y_str, subj_label] if part]) or "入試過去問"
+
+            st.session_state["pdf_answers"] = out_a.getvalue()
+            st.session_state["pdf_questions"] = out_q.getvalue()
+            st.session_state["pdf_merged"] = out_qa.getvalue()
+            st.session_state["base_filename"] = base_prefix
+
+        except Exception as e:
+            st.error(f"エラー詳細: {str(e)}")
+
+    if "pdf_answers" in st.session_state:
+        st.markdown("---")
+        download_choice = st.radio(
+            "出力するPDFの種類を選択",
+            options=["解答用紙のみ", "問題用紙のみ", "問題 ＋ 解答"],
+            horizontal=True
         )
 
-    uploaded_file = st.file_uploader("問題PDFをアップロード", type=["pdf"], key="single_uploader")
+        base_name = st.session_state["base_filename"]
 
-    st.markdown(f"""
-    <div class="notice-box">
-        ※ 過去問PDFをお持ちでない場合は、各大学の公式サイトや <a href="{TOSHIN_URL}" target="_blank" rel="noopener noreferrer">東進 過去問データベース</a> などの公式ポータル等から各自ご用意ください。
-    </div>
-    """, unsafe_allow_html=True)
+        if download_choice == "解答用紙のみ":
+            dl_data = st.session_state["pdf_answers"]
+            dl_filename = f"{base_name}_解答用紙.pdf"
+        elif download_choice == "問題用紙のみ":
+            dl_data = st.session_state["pdf_questions"]
+            dl_filename = f"{base_name}_問題用紙.pdf"
+        else:
+            dl_data = st.session_state["pdf_merged"]
+            dl_filename = f"{base_name}_問題および解答用紙.pdf"
 
-    include_questions = st.checkbox("問題用紙もまとめて1つのPDFにする（問題 ＋ 解答用紙）", value=False, key="single_inc_q")
-
-    if uploaded_file is not None:
-        st.caption(f"読み込みファイル: {uploaded_file.name}")
-        pdf_bytes = uploaded_file.read()
-
-        with st.expander("問題PDFプレビュー", expanded=False):
-            b64_pdf = base64.b64encode(pdf_bytes).decode("utf-8")
-            pdf_display = f'<iframe src="data:application/pdf;base64,{b64_pdf}" width="100%" height="600" type="application/pdf" style="border: 1px solid #cbd5e1; border-radius: 4px;"></iframe>'
-            st.markdown(pdf_display, unsafe_allow_html=True)
-
-        if st.button("解答用紙を作成する", key="single_gen_btn"):
-            active_api_key = user_api_key or os.environ.get("GEMINI_API_KEY")
-            if not active_api_key:
-                st.error("Gemini APIキーが設定されていません。ページ上部の手順に従ってAPIキーを入力してください。")
-                st.stop()
-
-            progress_text = st.empty()
-            progress_bar = st.progress(0)
-
-            try:
-                progress_text.text("1/3: PDFデータを解析中...")
-                progress_bar.progress(20)
-
-                progress_text.text(f"2/3: {selected_subject}の設問構成を抽出中...")
-                progress_bar.progress(50)
-
-                client = genai.Client(api_key=active_api_key)
-                prompt = get_ai_prompt(selected_subject, exam_format, science_layout)
-                exam = parse_exam_with_gemini(client, pdf_bytes, prompt)
-                exam.subject = selected_subject
-
-                st.session_state["cached_exam"] = exam
-                st.session_state["cached_pdf_bytes"] = pdf_bytes
-                st.session_state["is_modified"] = False
-
-                progress_text.text("3/3: B4本番用紙を組版中...")
-                progress_bar.progress(80)
-
-                typst_code = build_typst_code(exam, exam_format, selected_subject, science_layout)
-                answer_sheet_bytes = compile_typst_to_pdf(typst_code, "web_output_single")
-
-                raw_u = (exam.university or "").replace("大学", "").replace("大学名", "").strip()
-                has_univ = bool(raw_u and raw_u.lower() not in ["unknown", "none", "未定"])
-                raw_y = (str(exam.year) if exam.year else "").replace("年度", "").strip()
-                has_year = bool(raw_y and raw_y.lower() not in ["unknown", "none", "未定"])
-
-                name_parts = []
-                if has_univ:
-                    name_parts.append(f"{raw_u}大学")
-                if has_year:
-                    name_parts.append(f"{raw_y}年度")
-                if exam.subject:
-                    name_parts.append(exam.subject)
-
-                doc_type = "問題および解答用紙" if include_questions else "解答用紙"
-                name_parts.append(doc_type)
-                file_display_name = f"{'_'.join(name_parts)}.pdf"
-
-                if include_questions:
-                    merger = PdfWriter()
-                    for p in PdfReader(io.BytesIO(pdf_bytes)).pages:
-                        merger.add_page(p)
-                    for p in PdfReader(io.BytesIO(answer_sheet_bytes)).pages:
-                        merger.add_page(p)
-                    out = io.BytesIO()
-                    merger.write(out)
-                    final_pdf_bytes = out.getvalue()
-                else:
-                    final_pdf_bytes = answer_sheet_bytes
-
-                st.session_state["final_pdf_bytes"] = final_pdf_bytes
-                st.session_state["file_display_name"] = file_display_name
-
-                progress_bar.progress(100)
-                progress_text.text("組版が完了しました。")
-
-            except Exception as e:
-                st.error(f"エラー詳細: {str(e)}")
-
-        if "final_pdf_bytes" in st.session_state and "file_display_name" in st.session_state:
-            button_label = f"{st.session_state['file_display_name']} をダウンロード"
-            if st.session_state.get("is_modified", False):
-                button_label = f"{st.session_state['file_display_name']}（修正版）をダウンロード"
-
-            st.download_button(
-                label=button_label,
-                data=st.session_state["final_pdf_bytes"],
-                file_name=st.session_state["file_display_name"],
-                mime="application/pdf",
-                type="primary",
-                key="single_dl_btn"
-            )
-
-            with st.expander("設問・解答欄のレイアウト微調整（任意）", expanded=False):
-                st.caption("AIが自動判定した枠の種類や行数を手動で変更し、PDFを再生成できます。")
-                cached_exam = st.session_state.get("cached_exam")
-                if cached_exam:
-                    japanese_type_options = list(TYPE_LABEL_MAP.values())
-                    for sec_i, sec in enumerate(cached_exam.sections):
-                        st.markdown(f"**【{sec.big_number}】**")
-                        for q_i, q in enumerate(sec.questions):
-                            cols = st.columns([2, 4, 3])
-                            with cols[0]:
-                                q.q_number = st.text_input("設問番号", value=q.q_number, key=f"qnum_{sec_i}_{q_i}")
-                            with cols[1]:
-                                cur_jp = TYPE_LABEL_MAP.get(q.q_type, "横罫線（和訳・英作文・短論述）")
-                                new_jp = st.selectbox("枠の種類", options=japanese_type_options, index=japanese_type_options.index(cur_jp), key=f"qtype_{sec_i}_{q_i}")
-                                q.q_type = LABEL_TO_TYPE_MAP[new_jp]
-                            with cols[2]:
-                                if q.q_type in ["lined_box", "free_box", "math_box"]:
-                                    q.line_count = st.number_input("枠の高さ・行数", min_value=1, max_value=20, value=q.line_count or 4, key=f"qln_{sec_i}_{q_i}")
-                                elif q.q_type == "char_grid":
-                                    q.chars_limit = st.number_input("字数制限（マス数）", min_value=10, max_value=600, step=10, value=q.chars_limit or 100, key=f"qch_{sec_i}_{q_i}")
-                                elif q.q_type == "exact_word_fill":
-                                    q.chars_limit = st.number_input("抜き出し文字数", min_value=1, max_value=20, value=q.chars_limit or 4, key=f"qex_{sec_i}_{q_i}")
-                                elif q.q_type == "table_fill":
-                                    cnt = len(q.symbols) if q.symbols else 1
-                                    new_cnt = st.number_input("小問・マークの個数", min_value=1, max_value=15, value=cnt, key=f"qcnt_{sec_i}_{q_i}")
-                                    q.symbols = [f"({i+1})" for i in range(new_cnt)] if new_cnt > 1 else None
-
-                    if st.button("設定を反映して再生成する", type="secondary", key="single_re_gen"):
-                        new_typ = build_typst_code(cached_exam, exam_format, selected_subject, science_layout)
-                        new_a_bytes = compile_typst_to_pdf(new_typ, "web_output_single")
-                        if include_questions:
-                            merger = PdfWriter()
-                            for p in PdfReader(io.BytesIO(st.session_state["cached_pdf_bytes"])).pages:
-                                merger.add_page(p)
-                            for p in PdfReader(io.BytesIO(new_a_bytes)).pages:
-                                merger.add_page(p)
-                            out = io.BytesIO()
-                            merger.write(out)
-                            st.session_state["final_pdf_bytes"] = out.getvalue()
-                        else:
-                            st.session_state["final_pdf_bytes"] = new_a_bytes
-                        st.session_state["is_modified"] = True
-                        st.rerun()
-
-# =========================================================
-# タブ2: 複数教科まとめて作成（パターンA ＆ 並び順①）
-# =========================================================
-with tab_batch:
-    batch_files = st.file_uploader(
-        "複数の過去問PDFを一括アップロード",
-        type=["pdf"],
-        accept_multiple_files=True,
-        key="batch_uploader"
-    )
-
-    if batch_files:
-        st.markdown("##### 各ファイルの教科・形式を設定")
-        
-        batch_configs = []
-        for idx, f in enumerate(batch_files):
-            st.markdown(f'<div class="batch-file-card">📄 <strong>{f.name}</strong></div>', unsafe_allow_html=True)
-            cols = st.columns([3, 4, 3])
-            
-            # ファイル名から科目を簡易推測
-            default_subj_idx = 0
-            fname_lower = f.name.lower()
-            if "英" in fname_lower or "eng" in fname_lower:
-                default_subj_idx = 1
-            elif "数" in fname_lower or "math" in fname_lower:
-                default_subj_idx = 2
-            elif "歴" in fname_lower or "社" in fname_lower or "世" in fname_lower or "日" in fname_lower or "地" in fname_lower:
-                default_subj_idx = 3
-            elif "理" in fname_lower or "物" in fname_lower or "化" in fname_lower or "生" in fname_lower:
-                default_subj_idx = 4
-            
-            with cols[0]:
-                b_subj = st.selectbox("科目", options=SUBJECT_OPTIONS, index=default_subj_idx, key=f"b_subj_{idx}")
-            with cols[1]:
-                b_fmt = st.selectbox("形式", options=FORMAT_OPTIONS, key=f"b_fmt_{idx}")
-            with cols[2]:
-                b_sci = ""
-                if b_subj == "理科" and b_fmt == "記述・論述式":
-                    b_sci = st.selectbox("理科設定", options=["記述メイン（国公立・難関大風）", "記号・短答メイン（模試風）"], key=f"b_sci_{idx}")
-                else:
-                    st.write("")
-
-            batch_configs.append({
-                "file": f,
-                "subject": b_subj,
-                "format": b_fmt,
-                "sci_layout": b_sci
-            })
-
-        if st.button("まとめて解答用紙を作成する", key="batch_gen_btn"):
-            active_api_key = user_api_key or os.environ.get("GEMINI_API_KEY")
-            if not active_api_key:
-                st.error("Gemini APIキーが設定されていません。ページ上部の手順に従ってAPIキーを入力してください。")
-                st.stop()
-
-            total_count = len(batch_configs)
-            progress_text = st.empty()
-            progress_bar = st.progress(0)
-
-            client = genai.Client(api_key=active_api_key)
-
-            results_list = [] # 各教科の (q_bytes, a_bytes, univ, year, subj)
-
-            try:
-                for idx, item in enumerate(batch_configs):
-                    f = item["file"]
-                    f_subj = item["subject"]
-                    f_fmt = item["format"]
-                    f_sci = item["sci_layout"]
-
-                    f.seek(0)
-                    cur_q_bytes = f.read()
-
-                    progress_text.text(f"[{idx+1}/{total_count}] {f_subj}（{f.name}）を解析中...")
-                    progress_bar.progress(int((idx / total_count) * 100))
-
-                    prompt = get_ai_prompt(f_subj, f_fmt, f_sci)
-                    exam = parse_exam_with_gemini(client, cur_q_bytes, prompt)
-                    exam.subject = f_subj
-
-                    typ_code = build_typst_code(exam, f_fmt, f_subj, f_sci)
-                    cur_a_bytes = compile_typst_to_pdf(typ_code, f"web_output_batch_{idx}")
-
-                    results_list.append({
-                        "q_bytes": cur_q_bytes,
-                        "a_bytes": cur_a_bytes,
-                        "univ": exam.university,
-                        "year": exam.year,
-                        "subject": f_subj
-                    })
-
-                progress_bar.progress(100)
-                progress_text.text("全科目の組版が完了しました。")
-
-                # 3種類のPDFを事前生成
-                # 1. 解答用紙のみ
-                merger_a = PdfWriter()
-                for r in results_list:
-                    for p in PdfReader(io.BytesIO(r["a_bytes"])).pages:
-                        merger_a.add_page(p)
-                out_a = io.BytesIO()
-                merger_a.write(out_a)
-
-                # 2. 問題用紙のみ
-                merger_q = PdfWriter()
-                for r in results_list:
-                    for p in PdfReader(io.BytesIO(r["q_bytes"])).pages:
-                        merger_q.add_page(p)
-                out_q = io.BytesIO()
-                merger_q.write(out_q)
-
-                # 3. 問題 ＋ 解答（並び順①: 科目ごとに 問題 -> 解答）
-                merger_qa = PdfWriter()
-                for r in results_list:
-                    for p in PdfReader(io.BytesIO(r["q_bytes"])).pages:
-                        merger_qa.add_page(p)
-                    for p in PdfReader(io.BytesIO(r["a_bytes"])).pages:
-                        merger_qa.add_page(p)
-                out_qa = io.BytesIO()
-                merger_qa.write(out_qa)
-
-                # 代表大学名・年度
-                first_r = results_list[0]
-                raw_u = (first_r["univ"] or "").replace("大学", "").replace("大学名", "").strip()
-                u_str = f"{raw_u}大学" if (raw_u and raw_u.lower() not in ["unknown", "none", "未定"]) else ""
-                raw_y = (str(first_r["year"]) if first_r["year"] else "").replace("年度", "").strip()
-                y_str = f"{raw_y}年度" if (raw_y and raw_y.lower() not in ["unknown", "none", "未定"]) else ""
-
-                base_prefix = "_".join([part for part in [u_str, y_str, "全科目"] if part]) or "入試過去問"
-
-                st.session_state["batch_pdf_answers"] = out_a.getvalue()
-                st.session_state["batch_pdf_questions"] = out_q.getvalue()
-                st.session_state["batch_pdf_merged"] = out_qa.getvalue()
-                st.session_state["batch_base_name"] = base_prefix
-
-            except Exception as e:
-                st.error(f"エラー詳細: {str(e)}")
-
-        if "batch_pdf_answers" in st.session_state:
-            st.markdown("---")
-            download_choice = st.radio(
-                "出力するPDFの種類を選択",
-                options=["解答用紙のみ", "問題用紙のみ", "問題 ＋ 解答"],
-                horizontal=True,
-                key="batch_dl_choice"
-            )
-
-            base_name = st.session_state["batch_base_name"]
-
-            if download_choice == "解答用紙のみ":
-                dl_data = st.session_state["batch_pdf_answers"]
-                dl_filename = f"{base_name}_解答用紙一式.pdf"
-            elif download_choice == "問題用紙のみ":
-                dl_data = st.session_state["batch_pdf_questions"]
-                dl_filename = f"{base_name}_問題用紙一式.pdf"
-            else:
-                dl_data = st.session_state["batch_pdf_merged"]
-                dl_filename = f"{base_name}_問題および解答用紙一式.pdf"
-
-            st.download_button(
-                label=f"📥 {dl_filename} をダウンロード",
-                data=dl_data,
-                file_name=dl_filename,
-                mime="application/pdf",
-                type="primary",
-                key="batch_dl_btn"
-            )
+        st.download_button(
+            label=f"📥 {dl_filename} をダウンロード",
+            data=dl_data,
+            file_name=dl_filename,
+            mime="application/pdf",
+            type="primary"
+        )
 
 # ----------------- フッター -----------------
 st.markdown(f"""
