@@ -25,47 +25,112 @@ st.markdown("""
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap');
     html, body, [class*="css"] { font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif; }
     .block-container { padding-top: 2rem; padding-bottom: 3rem; max-width: 820px; }
-    .header-box { border-bottom: 2px solid var(--text-color, #0f172a); padding-bottom: 1rem; margin-bottom: 1.5rem; }
-    .header-title { font-size: 1.8rem; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 0.3rem; }
-    .header-sub { font-size: 0.9rem; opacity: 0.8; }
     
-    .setup-card {
+    .header-box { 
+        border-bottom: 1px solid #e2e8f0; 
+        padding-bottom: 1.2rem; 
+        margin-bottom: 1.5rem; 
+    }
+    .header-title { 
+        font-size: 1.6rem; 
+        font-weight: 700; 
+        color: #0f172a; 
+        letter-spacing: -0.01em; 
+        margin-bottom: 0.3rem; 
+    }
+    .header-sub { 
+        font-size: 0.88rem; 
+        color: #64748b; 
+        line-height: 1.5; 
+    }
+    
+    .auth-panel {
         background-color: #f8fafc;
-        border: 2px solid #3b82f6;
-        border-radius: 12px;
-        padding: 18px;
-        margin-bottom: 1.5rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        padding: 16px 20px;
+        margin-bottom: 1.8rem;
     }
-    .setup-step {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-weight: 700;
+    .auth-title {
         font-size: 0.95rem;
+        font-weight: 700;
         color: #1e293b;
-        margin-top: 8px;
+        margin-bottom: 6px;
     }
-    .step-badge {
-        background: #3b82f6;
-        color: white;
-        border-radius: 50%;
-        width: 22px;
-        height: 22px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 0.8rem;
+    .auth-desc {
+        font-size: 0.82rem;
+        color: #475569;
+        margin-bottom: 12px;
+        line-height: 1.5;
+    }
+    .step-list {
+        margin: 0;
+        padding-left: 1.2rem;
+        font-size: 0.83rem;
+        color: #334155;
+        line-height: 1.7;
+    }
+    .step-list a {
+        color: #2563eb;
+        text-decoration: underline;
+        font-weight: 600;
     }
     
-    div[data-testid="stFileUploader"] { border: 1px solid rgba(150, 150, 150, 0.3); border-radius: 6px; padding: 12px; margin-bottom: 0.5rem; }
-    .notice-box { font-size: 0.82rem; color: #64748b; margin-bottom: 1.2rem; line-height: 1.5; }
-    .notice-box a { color: #0284c7; text-decoration: underline; }
-    .stButton>button { width: 100%; border-radius: 6px; height: 3.2rem; font-weight: 700; font-size: 1.05rem; background-color: #2563eb; color: #ffffff !important; border: none; transition: all 0.2s ease; }
-    .stButton>button:hover { background-color: #1d4ed8; }
-    .footer-container { margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid rgba(150, 150, 150, 0.2); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
-    .footer-text { font-size: 0.82rem; opacity: 0.75; }
-    .footer-link { font-size: 0.85rem; font-weight: 500; color: #38bdf8; text-decoration: none; }
-    .footer-link:hover { text-decoration: underline; }
+    div[data-testid="stFileUploader"] { 
+        border: 1px solid #cbd5e1; 
+        border-radius: 6px; 
+        padding: 12px; 
+        margin-bottom: 0.5rem; 
+    }
+    .notice-box { 
+        font-size: 0.82rem; 
+        color: #64748b; 
+        margin-bottom: 1.2rem; 
+        line-height: 1.5; 
+    }
+    .notice-box a { 
+        color: #2563eb; 
+        text-decoration: underline; 
+    }
+    
+    .stButton>button { 
+        width: 100%; 
+        border-radius: 6px; 
+        height: 3.2rem; 
+        font-weight: 700; 
+        font-size: 1rem; 
+        background-color: #0f172a; 
+        color: #ffffff !important; 
+        border: none; 
+        transition: background-color 0.2s ease; 
+    }
+    .stButton>button:hover { 
+        background-color: #1e293b; 
+    }
+    
+    .footer-container { 
+        margin-top: 3.5rem; 
+        padding-top: 1.5rem; 
+        border-top: 1px solid #e2e8f0; 
+        display: flex; 
+        justify-content: space-between; 
+        align-items: center; 
+        flex-wrap: wrap; 
+        gap: 1rem; 
+    }
+    .footer-text { 
+        font-size: 0.82rem; 
+        color: #64748b; 
+    }
+    .footer-link { 
+        font-size: 0.85rem; 
+        font-weight: 500; 
+        color: #2563eb; 
+        text-decoration: none; 
+    }
+    .footer-link:hover { 
+        text-decoration: underline; 
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -76,15 +141,13 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ----------------- 初心者ナビ＆ブラウザ永続保存（localStorage） -----------------
-# ブラウザの localStorage からキーを読み取るための JavaScript
+# ----------------- ブラウザローカル保存スクリプト -----------------
 js_storage_bridge = """
 <script>
     const savedKey = localStorage.getItem("user_gemini_api_key") || "";
     const parentDoc = window.parent.document;
     const inputField = parentDoc.querySelector('input[data-testid="stTextInputRootElement_apiKeyInput"]');
     
-    // 入力欄がまだ空で、ブラウザに保存済みなら自動補完
     if (inputField && !inputField.value && savedKey) {
         inputField.value = savedKey;
         inputField.dispatchEvent(new Event('input', { bubbles: true }));
@@ -97,59 +160,42 @@ components.html(js_storage_bridge, height=0, width=0)
 if "saved_api_key" not in st.session_state:
     st.session_state["saved_api_key"] = ""
 
-# URLクエリからの読み込み（初回移行用）
 url_key = st.query_params.get("key", "")
 default_input_val = st.session_state["saved_api_key"] or url_key
 
-st.markdown("""
-<div class="setup-card">
-    <div style="font-size: 1.05rem; font-weight: 700; color: #1e3a8a; margin-bottom: 4px;">
-        ✨ 【完全無料】はじめに：30秒で使えるようにしよう！
+st.markdown(f"""
+<div class="auth-panel">
+    <div class="auth-title">Gemini APIキーの設定</div>
+    <div class="auth-desc">
+        問題構造の解析に利用するGoogle Gemini APIキーを設定します。キーはブラウザに自動保存されるため、次回以降の入力は不要です。
     </div>
-    <div style="font-size: 0.85rem; color: #475569; margin-bottom: 12px;">
-        Googleの無料AIコード（APIキー）を1度貼り付けるだけで、このスマホ・パソコンでずっと使い続けられます（お金は1円もかかりません）。
-    </div>
-    <div class="setup-step">
-        <span class="step-badge">1</span>
-        <span>下の青いボタンを押してGoogleのページを開く</span>
-    </div>
-    <div style="margin: 6px 0 10px 30px;">
-        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" 
-           style="display: inline-block; background-color: #2563eb; color: #ffffff; padding: 7px 16px; border-radius: 6px; font-weight: 700; text-decoration: none; font-size: 0.88rem;">
-            👉 Googleで無料コードを取得する（別タブで開く）
-        </a>
-    </div>
-    <div class="setup-step">
-        <span class="step-badge">2</span>
-        <span>画面の青い「Create API key」を押して、出てきたコードをコピー</span>
-    </div>
-    <div class="setup-step" style="margin-bottom: 8px;">
-        <span class="step-badge">3</span>
-        <span>下の枠に貼り付ける（一度貼れば自動で記憶されます）</span>
-    </div>
+    <ol class="step-list">
+        <li><a href="{AI_STUDIO_URL}" target="_blank" rel="noopener noreferrer">Google AI Studio（APIキー管理画面）</a> にアクセスする</li>
+        <li>画面右上の「<strong>API キーを作成</strong>」をクリックする</li>
+        <li>ポップアップ内の「<strong>キーを作成</strong>」をクリックする</li>
+        <li>生成されたキーの「<strong>コピー</strong>」をクリックし、下の入力欄に貼り付ける</li>
+    </ol>
 </div>
 """, unsafe_allow_html=True)
 
 user_api_key = st.text_input(
-    "無料AIコード（APIキー）",
+    "Gemini APIキー",
     value=default_input_val,
     type="password",
-    placeholder="AIzaSy... から始まるコードをここに貼り付け",
+    placeholder="AIzaSy...",
     key="apiKeyInput",
-    help="一度貼り付けるとブラウザに自動保存されます。"
+    help="Google AI Studioで取得したAPIキーを入力してください。"
 ).strip()
 
 if user_api_key:
     st.session_state["saved_api_key"] = user_api_key
-    # ブラウザの localStorage に恒久保存する JS を発火
     save_js = f"""
     <script>
         localStorage.setItem("user_gemini_api_key", "{user_api_key}");
     </script>
     """
     components.html(save_js, height=0, width=0)
-    st.success("🎉 コードを記憶しました！次回からは貼り直さなくてもすぐに使えます。")
-    # URLに露出していた key パラメータは安全のため消去
+    st.caption("APIキーを保存しました。この端末では次回以降もそのままご利用いただけます。")
     if "key" in st.query_params:
         del st.query_params["key"]
 
@@ -169,7 +215,7 @@ exam_format = st.radio(
 science_layout = ""
 if selected_subject == "理科" and exam_format == "記述・論述式":
     science_layout = st.radio(
-        "💡 理科のレイアウト設定",
+        "理科のレイアウト設定",
         options=["記述メイン（国公立・難関大風）", "記号・短答メイン（模試風）"],
         horizontal=True
     )
@@ -732,18 +778,18 @@ def compile_and_get_pdf(typst_code, pdf_bytes, exam, include_questions):
     return final_pdf_bytes, file_display_name
 
 if uploaded_file is not None:
-    st.success(f"読み込み完了: {uploaded_file.name}")
+    st.caption(f"読み込みファイル: {uploaded_file.name}")
     pdf_bytes = uploaded_file.read()
 
-    with st.expander("問題PDFの確認", expanded=False):
+    with st.expander("問題PDFプレビュー", expanded=False):
         b64_pdf = base64.b64encode(pdf_bytes).decode("utf-8")
-        pdf_display = f'<iframe src="data:application/pdf;base64,{b64_pdf}" width="100%" height="600" type="application/pdf" style="border: 1px solid rgba(150,150,150,0.3); border-radius: 4px;"></iframe>'
+        pdf_display = f'<iframe src="data:application/pdf;base64,{b64_pdf}" width="100%" height="600" type="application/pdf" style="border: 1px solid #cbd5e1; border-radius: 4px;"></iframe>'
         st.markdown(pdf_display, unsafe_allow_html=True)
 
     if st.button("解答用紙を作成する"):
         active_api_key = user_api_key or os.environ.get("GEMINI_API_KEY")
         if not active_api_key:
-            st.error("⚠️ 無料AIコード（APIキー）が入力されていません！ 一番上の「✨ はじめに」のボタンから30秒で取得して貼り付けてください。")
+            st.error("Gemini APIキーが設定されていません。ページ上部の手順に従ってAPIキーを入力してください。")
             st.stop()
 
         progress_text = st.empty()
@@ -812,7 +858,7 @@ Otherwise, output exactly ONE question per section with `q_number="解答欄"`, 
 You are an expert typesetter for University Entrance Exams in History, Geography, and Civics.
 Mentally solve and construct the standard model answer for each question first to estimate space accurately. ZERO HALLUCINATION.
 
-1. ESSAYS & DESCRIPTIONS: If character limit exists, use `q_type="char_grid"`, set `chars_limit`. If no limit, use `q_type="lined_box"` and estimate `line_count` (2 to 8 lines).
+1. ESSAYS & DESCRIPTIONS: If character limit exists, use `q_type="char_grid"`, set `chars_limit`. If no limit, use `q_type="lined_box"`, estimate `line_count` (2 to 8 lines).
 2. SHORT TERMS & IDENTIFICATION: Use `q_type="word_fill"`, set `symbols`.
 3. MULTIPLE CHOICE: Use `q_type="table_fill"`, set `symbols`.
 4. DRAWING / MAP ANNOTATION: Use `q_type="graph_box"`.
@@ -890,11 +936,9 @@ Read the exam questions carefully and extract the EXACT question structure. ZERO
             st.error(f"エラー詳細: {str(e)}")
 
     if "final_pdf_bytes" in st.session_state and "file_display_name" in st.session_state:
+        button_label = f"{st.session_state['file_display_name']} をダウンロード"
         if st.session_state.get("is_modified", False):
-            st.success("✅ 手動修正した内容でPDFを更新しました！ 下のボタンからダウンロードできます。")
-            button_label = f"📥 {st.session_state['file_display_name']}（修正版）をダウンロード"
-        else:
-            button_label = f"📥 {st.session_state['file_display_name']} をダウンロード"
+            button_label = f"{st.session_state['file_display_name']}（修正版）をダウンロード"
 
         st.download_button(
             label=button_label,
@@ -904,8 +948,8 @@ Read the exam questions carefully and extract the EXACT question structure. ZERO
             type="primary"
         )
 
-        with st.expander("🛠️ 設問や枠サイズを微調整する（任意）", expanded=False):
-            st.caption("AIが自動判定した枠の種類や行数を手動で変更し、すぐにPDFを再出力できます。")
+        with st.expander("設問・解答欄のレイアウト微調整（任意）", expanded=False):
+            st.caption("AIが自動判定した枠の種類や行数を手動で変更し、PDFを再生成できます。")
             cached_exam = st.session_state.get("cached_exam")
             if cached_exam:
                 japanese_type_options = list(TYPE_LABEL_MAP.values())
@@ -943,7 +987,7 @@ Read the exam questions carefully and extract the EXACT question structure. ZERO
                             else:
                                 st.write("")
 
-                if st.button("🔄 修正した内容でPDFを再生成する", type="secondary"):
+                if st.button("設定を反映して再生成する", type="secondary"):
                     new_typst = build_typst_code(cached_exam, exam_format, selected_subject, science_layout)
                     new_bytes, new_name = compile_and_get_pdf(new_typst, st.session_state["cached_pdf_bytes"], cached_exam, include_questions)
                     st.session_state["final_pdf_bytes"] = new_bytes
@@ -958,7 +1002,7 @@ st.markdown(f"""
     </div>
     <div>
         <a href="{GOOGLE_FORM_URL}" target="_blank" class="footer-link">
-            不具合報告・レイアウト改善要望はこちら
+            不具合報告・レイアウト改善要望
         </a>
     </div>
 </div>
