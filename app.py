@@ -1,10 +1,8 @@
 ﻿import os
 import io
 import time
-import base64
 import subprocess
 import streamlit as st
-import streamlit.components.v1 as components
 from pypdf import PdfWriter, PdfReader
 from google import genai
 from google.genai import types
@@ -12,7 +10,6 @@ from schemas.question_schema import ExamPaper, Question
 
 GOOGLE_FORM_URL = "https://forms.gle/x7isU1uRdGtiT5ZPA"
 TOSHIN_URL = "https://www.toshin-kakomon.com/"
-AI_STUDIO_URL = "https://aistudio.google.com/app/apikey"
 
 st.set_page_config(
     page_title="大学入試解答用紙ジェネレーター",
@@ -43,40 +40,6 @@ st.markdown("""
         color: inherit; 
         opacity: 0.8;
         line-height: 1.5; 
-    }
-    
-    .auth-panel {
-        background-color: rgba(148, 163, 184, 0.08);
-        border: 1px solid rgba(148, 163, 184, 0.3);
-        border-radius: 8px;
-        padding: 16px 20px;
-        margin-bottom: 1.5rem;
-    }
-    .auth-title {
-        font-size: 0.95rem;
-        font-weight: 700;
-        color: inherit;
-        margin-bottom: 6px;
-    }
-    .auth-desc {
-        font-size: 0.82rem;
-        color: inherit;
-        opacity: 0.85;
-        margin-bottom: 12px;
-        line-height: 1.5;
-    }
-    .step-list {
-        margin: 0;
-        padding-left: 1.2rem;
-        font-size: 0.83rem;
-        color: inherit;
-        opacity: 0.9;
-        line-height: 1.7;
-    }
-    .step-list a {
-        color: #3b82f6;
-        text-decoration: underline;
-        font-weight: 600;
     }
     
     div[data-testid="stFileUploader"] { 
@@ -154,64 +117,6 @@ st.markdown("""
     <div class="header-sub">入試過去問PDFから本番準拠のB4判解答用紙・マークシートを自動組版・生成します。</div>
 </div>
 """, unsafe_allow_html=True)
-
-# ----------------- ブラウザローカル保存スクリプト -----------------
-js_storage_bridge = """
-<script>
-    const savedKey = localStorage.getItem("user_gemini_api_key") || "";
-    const parentDoc = window.parent.document;
-    const inputField = parentDoc.querySelector('input[data-testid="stTextInputRootElement_apiKeyInput"]');
-    
-    if (inputField && !inputField.value && savedKey) {
-        inputField.value = savedKey;
-        inputField.dispatchEvent(new Event('input', { bubbles: true }));
-        inputField.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-</script>
-"""
-components.html(js_storage_bridge, height=0, width=0)
-
-if "saved_api_key" not in st.session_state:
-    st.session_state["saved_api_key"] = ""
-
-url_key = st.query_params.get("key", "")
-default_input_val = st.session_state["saved_api_key"] or url_key
-
-st.markdown(f"""
-<div class="auth-panel">
-    <div class="auth-title">Gemini APIキーの設定（無料）</div>
-    <div class="auth-desc">
-        問題構造の解析に利用するGoogle Gemini APIキーを設定します。キーはブラウザに自動保存されるため、次回以降の入力は不要です。
-    </div>
-    <ol class="step-list">
-        <li><a href="{AI_STUDIO_URL}" target="_blank" rel="noopener noreferrer">Google AI Studio（APIキー管理画面）</a> にアクセスする</li>
-        <li>画面右上の「<strong>API キーを作成</strong>」をクリックする</li>
-        <li>ポップアップ内の「<strong>キーを作成</strong>」をクリックする</li>
-        <li>生成されたキーの「<strong>コピー</strong>」をクリックし、下の入力欄に貼り付ける</li>
-    </ol>
-</div>
-""", unsafe_allow_html=True)
-
-user_api_key = st.text_input(
-    "Gemini APIキー",
-    value=default_input_val,
-    type="password",
-    placeholder="AIzaSy...",
-    key="apiKeyInput",
-    help="Google AI Studioで取得したAPIキーを入力してください。"
-).strip()
-
-if user_api_key:
-    st.session_state["saved_api_key"] = user_api_key
-    save_js = f"""
-    <script>
-        localStorage.setItem("user_gemini_api_key", "{user_api_key}");
-    </script>
-    """
-    components.html(save_js, height=0, width=0)
-    st.caption("APIキーを保存しました。この端末では次回以降もそのままご利用いただけます。")
-    if "key" in st.query_params:
-        del st.query_params["key"]
 
 # ----------------- 共通処理・関数 -----------------
 SUBJECT_OPTIONS = ["国語", "英語", "数学", "地歴・社会", "理科"]
@@ -784,7 +689,7 @@ Otherwise, output exactly ONE question per section with `q_number="解答欄"`, 
 You are an expert typesetter for University Entrance Exams in History, Geography, and Civics.
 Mentally solve and construct the standard model answer for each question first to estimate space accurately. ZERO HALLUCINATION.
 
-1. ESSAYS & DESCRIPTIONS: If character limit exists, use `q_type="char_grid"`, set `chars_limit`. If no limit, use `q_type="lined_box"` and estimate `line_count` (2 to 8 lines).
+1. ESSAYS & DESCRIPTIONS: If character limit exists, use `q_type="char_grid"`, set `chars_limit`. If no limit, use `q_type="lined_box"`, estimate `line_count` (2 to 8 lines).
 2. SHORT TERMS & IDENTIFICATION: Use `q_type="word_fill"`, set `symbols`.
 3. MULTIPLE CHOICE: Use `q_type="table_fill"`, set `symbols`.
 4. DRAWING / MAP ANNOTATION: Use `q_type="graph_box"`.
@@ -838,7 +743,7 @@ def parse_exam_with_gemini(client, pdf_bytes, prompt):
                 continue
             raise api_err
 
-# ----------------- メイン画面（1本化） -----------------
+# ----------------- メイン画面 -----------------
 uploaded_files = st.file_uploader(
     "過去問PDFをアップロード（1ファイルまたは複数ファイル）",
     type=["pdf"],
@@ -890,15 +795,16 @@ if uploaded_files:
         })
 
     if st.button("解答用紙を作成する"):
-        if not user_api_key:
-            st.error("Gemini APIキーが設定されていません。ページ上部の手順に従ってAPIキーを入力してください。")
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            st.error("システム管理用のAPIキーが設定されていません。管理者に連絡してください。")
             st.stop()
 
         total_count = len(file_configs)
         progress_text = st.empty()
         progress_bar = st.progress(0)
 
-        client = genai.Client(api_key=user_api_key)
+        client = genai.Client(api_key=api_key)
         results_list = []
 
         try:
