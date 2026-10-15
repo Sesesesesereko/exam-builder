@@ -4,6 +4,7 @@ import time
 import base64
 import subprocess
 import streamlit as st
+import streamlit.components.v1 as components
 from pypdf import PdfWriter, PdfReader
 from google import genai
 from google.genai import types
@@ -11,6 +12,7 @@ from schemas.question_schema import ExamPaper, Question
 
 GOOGLE_FORM_URL = "https://forms.gle/x7isU1uRdGtiT5ZPA"
 TOSHIN_URL = "https://www.toshin-kakomon.com/"
+AI_STUDIO_URL = "https://aistudio.google.com/app/apikey"
 
 st.set_page_config(
     page_title="大学入試解答用紙ジェネレーター",
@@ -22,10 +24,39 @@ st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap');
     html, body, [class*="css"] { font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif; }
-    .block-container { padding-top: 2.5rem; padding-bottom: 3rem; max-width: 820px; }
-    .header-box { border-bottom: 2px solid var(--text-color, #0f172a); padding-bottom: 1rem; margin-bottom: 2rem; }
+    .block-container { padding-top: 2rem; padding-bottom: 3rem; max-width: 820px; }
+    .header-box { border-bottom: 2px solid var(--text-color, #0f172a); padding-bottom: 1rem; margin-bottom: 1.5rem; }
     .header-title { font-size: 1.8rem; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 0.3rem; }
     .header-sub { font-size: 0.9rem; opacity: 0.8; }
+    
+    .setup-card {
+        background-color: #f8fafc;
+        border: 2px solid #3b82f6;
+        border-radius: 12px;
+        padding: 18px;
+        margin-bottom: 1.5rem;
+    }
+    .setup-step {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 700;
+        font-size: 0.95rem;
+        color: #1e293b;
+        margin-top: 8px;
+    }
+    .step-badge {
+        background: #3b82f6;
+        color: white;
+        border-radius: 50%;
+        width: 22px;
+        height: 22px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.8rem;
+    }
+    
     div[data-testid="stFileUploader"] { border: 1px solid rgba(150, 150, 150, 0.3); border-radius: 6px; padding: 12px; margin-bottom: 0.5rem; }
     .notice-box { font-size: 0.82rem; color: #64748b; margin-bottom: 1.2rem; line-height: 1.5; }
     .notice-box a { color: #0284c7; text-decoration: underline; }
@@ -45,6 +76,84 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+# ----------------- 初心者ナビ＆ブラウザ永続保存（localStorage） -----------------
+# ブラウザの localStorage からキーを読み取るための JavaScript
+js_storage_bridge = """
+<script>
+    const savedKey = localStorage.getItem("user_gemini_api_key") || "";
+    const parentDoc = window.parent.document;
+    const inputField = parentDoc.querySelector('input[data-testid="stTextInputRootElement_apiKeyInput"]');
+    
+    // 入力欄がまだ空で、ブラウザに保存済みなら自動補完
+    if (inputField && !inputField.value && savedKey) {
+        inputField.value = savedKey;
+        inputField.dispatchEvent(new Event('input', { bubbles: true }));
+        inputField.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+</script>
+"""
+components.html(js_storage_bridge, height=0, width=0)
+
+if "saved_api_key" not in st.session_state:
+    st.session_state["saved_api_key"] = ""
+
+# URLクエリからの読み込み（初回移行用）
+url_key = st.query_params.get("key", "")
+default_input_val = st.session_state["saved_api_key"] or url_key
+
+st.markdown("""
+<div class="setup-card">
+    <div style="font-size: 1.05rem; font-weight: 700; color: #1e3a8a; margin-bottom: 4px;">
+        ✨ 【完全無料】はじめに：30秒で使えるようにしよう！
+    </div>
+    <div style="font-size: 0.85rem; color: #475569; margin-bottom: 12px;">
+        Googleの無料AIコード（APIキー）を1度貼り付けるだけで、このスマホ・パソコンでずっと使い続けられます（お金は1円もかかりません）。
+    </div>
+    <div class="setup-step">
+        <span class="step-badge">1</span>
+        <span>下の青いボタンを押してGoogleのページを開く</span>
+    </div>
+    <div style="margin: 6px 0 10px 30px;">
+        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" 
+           style="display: inline-block; background-color: #2563eb; color: #ffffff; padding: 7px 16px; border-radius: 6px; font-weight: 700; text-decoration: none; font-size: 0.88rem;">
+            👉 Googleで無料コードを取得する（別タブで開く）
+        </a>
+    </div>
+    <div class="setup-step">
+        <span class="step-badge">2</span>
+        <span>画面の青い「Create API key」を押して、出てきたコードをコピー</span>
+    </div>
+    <div class="setup-step" style="margin-bottom: 8px;">
+        <span class="step-badge">3</span>
+        <span>下の枠に貼り付ける（一度貼れば自動で記憶されます）</span>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+user_api_key = st.text_input(
+    "無料AIコード（APIキー）",
+    value=default_input_val,
+    type="password",
+    placeholder="AIzaSy... から始まるコードをここに貼り付け",
+    key="apiKeyInput",
+    help="一度貼り付けるとブラウザに自動保存されます。"
+).strip()
+
+if user_api_key:
+    st.session_state["saved_api_key"] = user_api_key
+    # ブラウザの localStorage に恒久保存する JS を発火
+    save_js = f"""
+    <script>
+        localStorage.setItem("user_gemini_api_key", "{user_api_key}");
+    </script>
+    """
+    components.html(save_js, height=0, width=0)
+    st.success("🎉 コードを記憶しました！次回からは貼り直さなくてもすぐに使えます。")
+    # URLに露出していた key パラメータは安全のため消去
+    if "key" in st.query_params:
+        del st.query_params["key"]
+
+# ----------------- メイン設定 -----------------
 selected_subject = st.radio(
     "科目を選択してください",
     options=["国語", "英語", "数学", "地歴・社会", "理科"],
@@ -510,7 +619,6 @@ def build_typst_code(exam, exam_format, selected_subject, science_layout):
                 current_choice_group = []
 
                 for q in questions:
-                    # 単一の記号枠が連続する場合のみ集約
                     if q.q_type == "table_fill" and (not q.symbols or len(q.symbols) <= 1):
                         current_choice_group.append(q.q_number)
                     else:
@@ -551,7 +659,6 @@ def build_typst_code(exam, exam_format, selected_subject, science_layout):
                         elif q.q_type == "reorder":
                             lines.append("    #reorder-box()")
                         elif q.q_type == "table_fill":
-                            # symbols に小問リストがある場合、見出しの下に横並びで出力
                             opts = q.symbols if q.symbols else ["(1)", "(2)", "(3)", "(4)"]
                             arr = ", ".join([f'"{s}"' for s in opts])
                             lines.append(f"    #compact-symbol-grid(items: ({arr},))")
@@ -634,9 +741,9 @@ if uploaded_file is not None:
         st.markdown(pdf_display, unsafe_allow_html=True)
 
     if st.button("解答用紙を作成する"):
-        api_key = os.environ.get("GEMINI_API_KEY")
-        if not api_key:
-            st.error("システムエラー: APIキーが設定されていません。管理者に連絡してください。")
+        active_api_key = user_api_key or os.environ.get("GEMINI_API_KEY")
+        if not active_api_key:
+            st.error("⚠️ 無料AIコード（APIキー）が入力されていません！ 一番上の「✨ はじめに」のボタンから30秒で取得して貼り付けてください。")
             st.stop()
 
         progress_text = st.empty()
@@ -649,7 +756,7 @@ if uploaded_file is not None:
             progress_text.text(f"2/3: {selected_subject}の設問構成を抽出中...")
             progress_bar.progress(50)
 
-            client = genai.Client(api_key=api_key)
+            client = genai.Client(api_key=active_api_key)
 
             if exam_format == "マークシート式（共通テスト・私大マーク型）":
                 prompt = f"""
