@@ -1,8 +1,10 @@
 ﻿import os
 import io
 import time
+import base64
 import subprocess
 import streamlit as st
+import streamlit.components.v1 as components
 from pypdf import PdfWriter, PdfReader
 from google import genai
 from google.genai import types
@@ -10,6 +12,7 @@ from schemas.question_schema import ExamPaper, Question
 
 GOOGLE_FORM_URL = "https://forms.gle/x7isU1uRdGtiT5ZPA"
 TOSHIN_URL = "https://www.toshin-kakomon.com/"
+AI_STUDIO_URL = "https://aistudio.google.com/app/apikey"
 
 st.set_page_config(
     page_title="大学入試解答用紙ジェネレーター",
@@ -40,6 +43,40 @@ st.markdown("""
         color: inherit; 
         opacity: 0.8;
         line-height: 1.5; 
+    }
+    
+    .auth-panel {
+        background-color: rgba(148, 163, 184, 0.08);
+        border: 1px solid rgba(148, 163, 184, 0.3);
+        border-radius: 8px;
+        padding: 16px 20px;
+        margin-bottom: 1.5rem;
+    }
+    .auth-title {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: inherit;
+        margin-bottom: 6px;
+    }
+    .auth-desc {
+        font-size: 0.82rem;
+        color: inherit;
+        opacity: 0.85;
+        margin-bottom: 12px;
+        line-height: 1.5;
+    }
+    .step-list {
+        margin: 0;
+        padding-left: 1.2rem;
+        font-size: 0.83rem;
+        color: inherit;
+        opacity: 0.9;
+        line-height: 1.7;
+    }
+    .step-list a {
+        color: #3b82f6;
+        text-decoration: underline;
+        font-weight: 600;
     }
     
     div[data-testid="stFileUploader"] { 
@@ -118,6 +155,64 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+# ----------------- ブラウザローカル保存スクリプト -----------------
+js_storage_bridge = """
+<script>
+    const savedKey = localStorage.getItem("user_gemini_api_key") || "";
+    const parentDoc = window.parent.document;
+    const inputField = parentDoc.querySelector('input[data-testid="stTextInputRootElement_apiKeyInput"]');
+    
+    if (inputField && !inputField.value && savedKey) {
+        inputField.value = savedKey;
+        inputField.dispatchEvent(new Event('input', { bubbles: true }));
+        inputField.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+</script>
+"""
+components.html(js_storage_bridge, height=0, width=0)
+
+if "saved_api_key" not in st.session_state:
+    st.session_state["saved_api_key"] = ""
+
+url_key = st.query_params.get("key", "")
+default_input_val = st.session_state["saved_api_key"] or url_key
+
+st.markdown(f"""
+<div class="auth-panel">
+    <div class="auth-title">Gemini APIキーの設定（無料）</div>
+    <div class="auth-desc">
+        問題構造の解析に利用するGoogle Gemini APIキーを設定します。キーはブラウザに自動保存されるため、次回以降の入力は不要です。
+    </div>
+    <ol class="step-list">
+        <li>個人のGoogleアカウント（@gmail.com等）で <a href="{AI_STUDIO_URL}" target="_blank" rel="noopener noreferrer">Google AI Studio</a> にアクセスする</li>
+        <li>画面右上の「<strong>API キーを作成</strong>」をクリックする</li>
+        <li>ポップアップ内の「<strong>キーを作成</strong>」をクリックする</li>
+        <li>生成されたキーの「<strong>コピー</strong>」をクリックし、下の入力欄に貼り付ける</li>
+    </ol>
+</div>
+""", unsafe_allow_html=True)
+
+user_api_key = st.text_input(
+    "Gemini APIキー",
+    value=default_input_val,
+    type="password",
+    placeholder="AIzaSy...",
+    key="apiKeyInput",
+    help="Google AI Studioで取得した無料APIキーを入力してください。"
+).strip()
+
+if user_api_key:
+    st.session_state["saved_api_key"] = user_api_key
+    save_js = f"""
+    <script>
+        localStorage.setItem("user_gemini_api_key", "{user_api_key}");
+    </script>
+    """
+    components.html(save_js, height=0, width=0)
+    st.caption("APIキーを保存しました。この端末では次回以降もそのままご利用いただけます。")
+    if "key" in st.query_params:
+        del st.query_params["key"]
+
 # ----------------- 共通処理・関数 -----------------
 SUBJECT_OPTIONS = ["国語", "英語", "数学", "地歴・社会", "理科"]
 FORMAT_OPTIONS = ["記述・論述式", "マークシート式（共通テスト・私大マーク型）"]
@@ -170,6 +265,12 @@ def build_typst_code(exam, exam_format, selected_subject, science_layout=""):
     has_year = bool(raw_y and raw_y.lower() not in ["unknown", "none", "未定"])
     year_display = f"{raw_y}年度" if has_year else ""
 
+    # 全教科共通のヘッダータイトル（年度と大学名を漏れなく先頭に配置）
+    title_prefix_parts = [p for p in [year_display, univ_display] if p]
+    meta_prefix = " ".join(title_prefix_parts)
+    if meta_prefix:
+        meta_prefix += " "
+
     header_table_code = 'table(columns: (54pt, 68pt, 36pt, 88pt, 45pt), rows: (16pt, 24pt), align: center + horizon, stroke: 0.6pt + luma(40), table.cell(fill: white)[#text(size: 8.5pt)[受験番号]], table.cell(rowspan: 2, fill: white)[], table.cell(fill: white)[氏名], table.cell(rowspan: 2, fill: white)[], table.cell(fill: white)[※得点], table.cell(fill: white)[])'
 
     lines = [
@@ -190,7 +291,7 @@ def build_typst_code(exam, exam_format, selected_subject, science_layout=""):
             "  columns: (1fr, auto),",
             "  gutter: 12pt,",
             "  align: (left + top, right + top),",
-            f'  text(size: 14pt, weight: "bold")[{year_display} {univ_display} {exam.subject} マーク式解答用紙],',
+            f'  text(size: 14pt, weight: "bold")[{meta_prefix}{selected_subject} マーク式解答用紙],',
             '  table(columns: (55pt, 120pt), rows: (26pt,), align: center + horizon, stroke: 0.6pt + luma(40), table.cell(fill: white)[氏名], table.cell(fill: white)[])',
             ")",
             "#v(4pt)",
@@ -361,7 +462,7 @@ def build_typst_code(exam, exam_format, selected_subject, science_layout=""):
                     "  columns: (1fr, auto),",
                     "  gutter: 12pt,",
                     "  align: (left + top, right + top),",
-                    f'  text(size: 13pt, weight: "bold")[{year_display} {univ_display} 数学 解答用紙 【{sec.big_number}】],',
+                    f'  text(size: 13pt, weight: "bold")[{meta_prefix}数学 解答用紙 【{sec.big_number}】],',
                     f'  {header_table_code}',
                     ")",
                     "#v(5pt)",
@@ -385,7 +486,7 @@ def build_typst_code(exam, exam_format, selected_subject, science_layout=""):
                         "  columns: (1fr, auto),",
                         "  gutter: 12pt,",
                         "  align: (left + top, right + top),",
-                        f'  text(size: 13pt, weight: "bold")[{year_display} {univ_display} 理科 解答用紙 【{sec.big_number}】],',
+                        f'  text(size: 13pt, weight: "bold")[{meta_prefix}理科 解答用紙 【{sec.big_number}】],',
                         f'  {header_table_code}',
                         ")",
                         "#v(5pt)",
@@ -454,7 +555,7 @@ def build_typst_code(exam, exam_format, selected_subject, science_layout=""):
                             "  columns: (1fr, auto),",
                             "  gutter: 12pt,",
                             "  align: (left + top, right + top),",
-                            f'  text(size: 13pt, weight: "bold")[{year_display} {univ_display} 理科 解答用紙],',
+                            f'  text(size: 13pt, weight: "bold")[{meta_prefix}理科 解答用紙],',
                             f'  {header_table_code}',
                             ")",
                             "#v(4pt)",
@@ -547,7 +648,7 @@ def build_typst_code(exam, exam_format, selected_subject, science_layout=""):
                     "  columns: (1fr, auto),",
                     "  gutter: 12pt,",
                     "  align: (left + top, right + top),",
-                    f'  text(size: 13pt, weight: "bold")[{year_display} {univ_display} {exam.subject} 解答用紙 【{sec.big_number}】],',
+                    f'  text(size: 13pt, weight: "bold")[{meta_prefix}{selected_subject} 解答用紙 【{sec.big_number}】],',
                     f'  {header_table_code}',
                     ")",
                     "#v(5pt)",
@@ -635,8 +736,13 @@ def compile_typst_to_pdf(typst_code, filename_prefix="output"):
         return f.read()
 
 def get_ai_prompt(selected_subject, exam_format, science_layout=""):
+    meta_instruction = """
+CRITICAL METADATA REQUIREMENTS (ALL EXAMS):
+1. university: Read the cover, header, or questions to find the UNIVERSITY NAME (e.g., "東京大学", "筑波大学", "University of Tsukuba"). Convert English to Japanese ending with "大学". If not found, output "".
+2. year: Find the EXAMINATION YEAR (e.g., 2024, 2025, or 令和6年 -> 2024). Output as a 4-digit integer.
+"""
     if exam_format == "マークシート式（共通テスト・私大マーク型）":
-        return """
+        return meta_instruction + """
 You are an expert typesetter for Multiple-Choice Mark Sheet (OMR) Entrance Exams (like Japanese Common Test / 共通テスト).
 Read the exam questions carefully and extract EVERY multiple-choice question and sub-question.
 ZERO HALLUCINATION: Extract only questions that exist in the text.
@@ -654,7 +760,7 @@ RULES FOR MARK SHEET:
 3. Set `instruction` to "".
 """
     elif selected_subject == "国語":
-        return """
+        return meta_instruction + """
 You are a highly precise typesetter for Japanese entrance exams. Read ONLY the "設問" (Questions) section.
 Mentally solve the question first to determine the box type and size. ZERO HALLUCINATION.
 
@@ -664,7 +770,7 @@ Mentally solve the question first to determine the box type and size. ZERO HALLU
 4. MULTIPLE CHOICE: Use `q_type="table_fill"`, set `symbols`.
 """
     elif selected_subject == "英語":
-        return """
+        return meta_instruction + """
 You are an expert English entrance exam typesetter. Mentally solve questions to estimate required space. ZERO HALLUCINATION.
 
 1. MULTIPLE CHOICE & LISTENING (記号選択・リスニング):
@@ -678,14 +784,14 @@ You are an expert English entrance exam typesetter. Mentally solve questions to 
 5. FREE ESSAY: Use `q_type="lined_box"`, estimate `line_count` (8 to 12).
 """
     elif selected_subject == "数学":
-        return """
+        return meta_instruction + """
 You are a Math exam typesetter.
 Extract ONLY the main question numbers (e.g., 第1問, 第2問).
 For questions asking to draw a graph or figure, use `q_type="graph_box"`.
 Otherwise, output exactly ONE question per section with `q_number="解答欄"`, `q_type="math_box"`.
 """
     elif selected_subject == "地歴・社会":
-        return """
+        return meta_instruction + """
 You are an expert typesetter for University Entrance Exams in History, Geography, and Civics.
 Mentally solve and construct the standard model answer for each question first to estimate space accurately. ZERO HALLUCINATION.
 
@@ -695,7 +801,8 @@ Mentally solve and construct the standard model answer for each question first t
 4. DRAWING / MAP ANNOTATION: Use `q_type="graph_box"`.
 """
     elif selected_subject == "理科":
-        prompt_base = """You are an expert typesetter for Science university entrance exams.
+        prompt_base = meta_instruction + """
+You are an expert typesetter for Science university entrance exams.
 Read the exam questions carefully and extract the EXACT question structure. ZERO OMISSION:
 - You MUST extract EVERY explicitly numbered question and sub-question (問1, 問2, (1), (2), (a), (b)).
 """
@@ -717,7 +824,7 @@ Read the exam questions carefully and extract the EXACT question structure. ZERO
 4. DRAWING & GRAPHS: Use `q_type="graph_box"`.
 5. TEXT DESCRIPTIONS: "○字以内で": `q_type="char_grid"`. Formula: `q_type="lined_box"`.
 """
-    return "Extract questions. Set instruction to empty string."
+    return meta_instruction + "Extract questions. Set instruction to empty string."
 
 def parse_exam_with_gemini(client, pdf_bytes, prompt):
     max_retries = 3
@@ -795,19 +902,19 @@ if uploaded_files:
         })
 
     if st.button("解答用紙を作成する"):
-        api_key = os.environ.get("GEMINI_API_KEY")
-        if not api_key:
-            st.error("システム管理用のAPIキーが設定されていません。管理者に連絡してください。")
+        if not user_api_key:
+            st.error("Gemini APIキーが設定されていません。ページ上部の手順に従って個人の無料APIキーを入力してください。")
             st.stop()
 
         total_count = len(file_configs)
         progress_text = st.empty()
         progress_bar = st.progress(0)
 
-        client = genai.Client(api_key=api_key)
-        results_list = []
+        client = genai.Client(api_key=user_api_key)
+        parsed_items = []
 
         try:
+            # 1. 各ファイルのAI設問解析
             for idx, item in enumerate(file_configs):
                 f = item["file"]
                 f_subj = item["subject"]
@@ -818,57 +925,97 @@ if uploaded_files:
                 cur_q_bytes = f.read()
 
                 progress_text.text(f"[{idx+1}/{total_count}] {f_subj}（{f.name}）の設問構成を解析中...")
-                progress_bar.progress(int((idx / total_count) * 80))
+                progress_bar.progress(int(((idx + 0.5) / total_count) * 60))
 
                 prompt = get_ai_prompt(f_subj, f_fmt, f_sci)
                 exam = parse_exam_with_gemini(client, cur_q_bytes, prompt)
                 exam.subject = f_subj
 
-                typ_code = build_typst_code(exam, f_fmt, f_subj, f_sci)
+                parsed_items.append({
+                    "q_bytes": cur_q_bytes,
+                    "exam": exam,
+                    "subject": f_subj,
+                    "format": f_fmt,
+                    "sci_layout": f_sci
+                })
+
+            # 2. 全ファイルの大学名・年度メタデータを統合（他教科へ完全共有）
+            shared_univ = ""
+            shared_year = None
+            for p in parsed_items:
+                ex = p["exam"]
+                raw_u = (ex.university or "").replace("大学", "").replace("大学名", "").strip()
+                if not shared_univ and raw_u and raw_u.lower() not in ["unknown", "none", "未定"]:
+                    shared_univ = raw_u
+                if not shared_year and ex.year and str(ex.year).lower() not in ["unknown", "none", "未定"]:
+                    shared_year = ex.year
+
+            for p in parsed_items:
+                ex = p["exam"]
+                if not ex.university or ex.university.lower() in ["unknown", "none", "未定"]:
+                    ex.university = shared_univ
+                if not ex.year or str(ex.year).lower() in ["unknown", "none", "未定"]:
+                    ex.year = shared_year
+
+            # 3. 共有メタデータを用いて各教科のTypst組版を実行
+            results_list = []
+            for idx, p in enumerate(parsed_items):
+                progress_text.text(f"[{idx+1}/{total_count}] {p['subject']} の解答用紙をB4判で組版中...")
+                progress_bar.progress(60 + int(((idx + 1) / total_count) * 35))
+
+                typ_code = build_typst_code(p["exam"], p["format"], p["subject"], p["sci_layout"])
                 cur_a_bytes = compile_typst_to_pdf(typ_code, f"web_output_{idx}")
 
                 results_list.append({
-                    "q_bytes": cur_q_bytes,
+                    "q_bytes": p["q_bytes"],
                     "a_bytes": cur_a_bytes,
-                    "univ": exam.university,
-                    "year": exam.year,
-                    "subject": f_subj
+                    "univ": p["exam"].university,
+                    "year": p["exam"].year,
+                    "subject": p["subject"]
                 })
 
             progress_bar.progress(100)
             progress_text.text("組版が完了しました。")
 
+            # 1. 解答用紙のみ
             merger_a = PdfWriter()
             for r in results_list:
-                for p in PdfReader(io.BytesIO(r["a_bytes"])).pages:
-                    merger_a.add_page(p)
+                for page in PdfReader(io.BytesIO(r["a_bytes"])).pages:
+                    merger_a.add_page(page)
             out_a = io.BytesIO()
             merger_a.write(out_a)
 
+            # 2. 問題用紙のみ
             merger_q = PdfWriter()
             for r in results_list:
-                for p in PdfReader(io.BytesIO(r["q_bytes"])).pages:
-                    merger_q.add_page(p)
+                for page in PdfReader(io.BytesIO(r["q_bytes"])).pages:
+                    merger_q.add_page(page)
             out_q = io.BytesIO()
             merger_q.write(out_q)
 
+            # 3. 問題 ＋ 解答（科目ごとに 問題 -> 解答 の順）
             merger_qa = PdfWriter()
             for r in results_list:
-                for p in PdfReader(io.BytesIO(r["q_bytes"])).pages:
-                    merger_qa.add_page(p)
-                for p in PdfReader(io.BytesIO(r["a_bytes"])).pages:
-                    merger_qa.add_page(p)
+                for page in PdfReader(io.BytesIO(r["q_bytes"])).pages:
+                    merger_qa.add_page(page)
+                for page in PdfReader(io.BytesIO(r["a_bytes"])).pages:
+                    merger_qa.add_page(page)
             out_qa = io.BytesIO()
             merger_qa.write(out_qa)
 
-            first_r = results_list[0]
-            raw_u = (first_r["univ"] or "").replace("大学", "").replace("大学名", "").strip()
-            u_str = f"{raw_u}大学" if (raw_u and raw_u.lower() not in ["unknown", "none", "未定"]) else ""
-            raw_y = (str(first_r["year"]) if first_r["year"] else "").replace("年度", "").strip()
-            y_str = f"{raw_y}年度" if (raw_y and raw_y.lower() not in ["unknown", "none", "未定"]) else ""
+            # ファイル名の決定（送られた教科名を連結し、「全科目」を完全排除）
+            ordered_subjects = []
+            for item in file_configs:
+                s = item["subject"]
+                if s not in ordered_subjects:
+                    ordered_subjects.append(s)
+            subjects_str = "_".join(ordered_subjects)
 
-            subj_label = first_r["subject"] if total_count == 1 else "全科目"
-            base_prefix = "_".join([part for part in [u_str, y_str, subj_label] if part]) or "入試過去問"
+            u_str = f"{shared_univ}大学" if shared_univ else ""
+            y_str = f"{shared_year}年度" if shared_year else ""
+
+            name_tokens = [t for t in [u_str, y_str, subjects_str] if t]
+            base_prefix = "_".join(name_tokens) or subjects_str or "入試過去問"
 
             st.session_state["pdf_answers"] = out_a.getvalue()
             st.session_state["pdf_questions"] = out_q.getvalue()
